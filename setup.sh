@@ -6,6 +6,10 @@ if [ "$(id -u)" != "0" ]; then
   exit 1
 fi
 ### Check if system is debian and version is meet
+if [ ! -e /etc/debian_version ]; then
+echo "Looks like you aren't running this installer on a Debian-based system"
+exit
+fi
 required="7.0"
 version=$(cat /etc/debian_version)
 required=$(echo $required|sed 's/\.//g')
@@ -40,20 +44,36 @@ read choice
 case $choice in
 1)
 echo "Installing Apache2 and PHP5"
-apt-get update
+echo "Enter your admin email"
+read e
+if ! grep -q dotdeb "/etc/apt/sources.list"; then
+sed -i '$a\deb http://packages.dotdeb.org wheezy-php56 all' /etc/apt/sources.list
+sed -i '$a\deb-src http://packages.dotdeb.org wheezy-php56 all' /etc/apt/sources.list
+wget http://www.dotdeb.org/dotdeb.gpg
 wait
-apt-get -y upgrade
+sudo apt-key add dotdeb.gpg
+wait
+fi
+apt-get update -y
 wait
 apt-get -y install apache2
 wait
 apt-get -y install php5 libapache2-mod-php5 php5-mcrypt
 wait
-apt-get  -y install php5-mysql php5-curl php5-gd php5-idn php-pear php5-imagick php5-imap php5-memcache php5-ming php5-ps php5-pspell php5-recode php5-snmp php5-sqlite php5-tidy php5-xmlrpc php5-xsl php5-xcache
+apt-get  -y install php5-mysql php5-curl php5-gd php5-idn php-pear php5-imagick php5-imap php5-memcache php5-pspell php5-recode php5-snmp php5-sqlite php5-tidy php5-xmlrpc php5-xsl
 wait
 a2enmod rewrite
 wait
 sed -i '11 s/AllowOverride None/AllowOverride All/' /etc/apache2/sites-enabled/000-default
-sed -i 's/webmaster@localhost/support@craftbox.us/' /etc/apache2/sites-enabled/000-default
+sed -i 's/webmaster@localhost/'$e'/' /etc/apache2/sites-enabled/000-default
+wait
+if grep -q dotdeb "/etc/apt/sources.list"; then
+sed -i '/packages.dotdeb.org/d' /etc/apt/sources.list
+wait
+apt-get update
+wait
+a2enmod php5
+fi
 wait
 /etc/init.d/apache2 restart
 wait
@@ -62,8 +82,8 @@ touch /var/www/info.php
 echo $'<?php\nphpinfo();\n?>' > /var/www/info.php
 echo "Apache2 has been installed with PHP5 and mod_rewrite enabled ready to use"
 echo "PHP5 modules compiled with apache2: php5-mysql php5-curl php5-gd php5-idn php-pear php5-imagick"
-echo "php5-imap php5-mcrypt php5-memcache php5-ming php5-ps php5-pspell php5-recode php5-snmp"
-echo "php5-sqlite php5-tidy php5-xmlrpc php5-xsl php5-xcache"
+echo "php5-imap php5-mcrypt php5-memcache php5-pspell php5-recode php5-snmp"
+echo "php5-sqlite php5-tidy php5-xmlrpc php5-xsl"
 break
 ;;
 2)
@@ -80,7 +100,7 @@ apt-get update
 wait
 apt-get -y install mysql-server mysql-client
 wait
-apt-get install phpmyadmin
+apt-get install phpmyadmin -y
 wait
 mysql_secure_installation
 wait
