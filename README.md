@@ -16,7 +16,7 @@ Run the script and follow the assistant:
 * Java 7 JDK
 * MCMyAdmin x64
 * pptp server
-* OpenVPN Server (include option for NATed VPS)
+* OpenVPN Server (includes option for NATed VPS)
 * Squid3 Proxy Server
 * Google Authenticator
 
