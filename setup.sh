@@ -183,10 +183,10 @@ fi
 if [ ! -d "/home/$username/minecraft" ]; then
 mkdir /home/$username/minecraft
 fi
-wget -P /home/$username/minecraft http://mcmyadmin.com/Downloads/MCMA2_glibc25.zip
+wget -P /home/$username/minecraft http://mcmyadmin.com/Downloads/MCMA2_glibc26_2.zip
 wait
-unzip -o /home/$username/minecraft/MCMA2_glibc25.zip -d /home/$username/minecraft
-rm /home/$username/minecraft/MCMA2_glibc25.zip
+unzip -o /home/$username/minecraft/MCMA2_glibc26_2.zip -d /home/$username/minecraft
+rm /home/$username/minecraft/MCMA2_glibc26_2.zip
 wait
 wget -P /tmp http://mcmyadmin.com/Downloads/etc.zip
 wait
@@ -194,6 +194,8 @@ unzip -o /tmp/etc.zip -d /usr/local
 wait
 rm /tmp/etc.zip
 chown -R $username /home/$username/minecraft
+echo "McMyAdmin installed in /home/$username/minecraft"
+echo "Run ./MCMA2_Linux_x86_64 -setpass YOURPASSWORD -configonly"
 break
 ;;
 8)
