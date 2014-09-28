@@ -5,11 +5,17 @@ if [ "$(id -u)" != "0" ]; then
   echo "This script must be run as root" 1>&2
   exit 1
 fi
-### Check if system is debian
-if [ ! -e /etc/debian_version ]; then
-	echo "Looks like you aren't running this installer on a Debian-based system"
-	exit
+### Check if system is debian and version is meet
+#!/bin/bash
+required="7.0"
+version=$(cat /etc/debian_version)
+required=$(echo $required|sed 's/\.//g')
+version=$(echo $version|sed 's/\.//g')
+if [ $version -lt $required ]; then
+echo "You need to run Debian 7.0 or higher"
+exit 1
 fi
+
 while true; do
 echo "Choose what you want to install:"
 echo "1) Apache2 and PHP5"
@@ -34,6 +40,9 @@ echo "e) Exit"
 read choice
 case $choice in
 1)
+
+cat /etc/debian_version
+
 echo "Installing Apache2 and PHP5"
 apt-get update
 wait
