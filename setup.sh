@@ -1,6 +1,6 @@
 #!/bin/bash
 # Interactive essentials install script for VPS or Dedicated servers.
-# https://github.com/ircraft/setup
+# https://github.com/eunas/essentials
 if [ "$(id -u)" != "0" ]; then
   echo "This script must be run as root" 1>&2
   exit 1
@@ -325,23 +325,10 @@ fi
 break
 ;;
 9)
-if [[ "$USER" != 'root' ]]; then
-	echo "Sorry, you need to run this as root"
-	exit
-fi
-
-
 if [[ ! -e /dev/net/tun ]]; then
 	echo "TUN/TAP is not available"
 	exit
 fi
-
-
-if [[ ! -e /etc/debian_version ]]; then
-	echo "Looks like you aren't running this installer on a Debian-based system"
-	exit
-fi
-
 
 # Try to get our IP from the system and fallback to the Internet.
 # I do this to make the script compatible with NATed servers (lowendspirit.com)
@@ -749,6 +736,7 @@ break
 18)
 echo "Interactive essentials install script for VPS or Dedicated servers."
 echo "Tested on Debian 7.5 +"
+echo "https://github.com/eunas/essentials"
 break
 ;;
 e)
