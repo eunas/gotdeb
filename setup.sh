@@ -6,7 +6,6 @@ if [ "$(id -u)" != "0" ]; then
   exit 1
 fi
 ### Check if system is debian and version is meet
-#!/bin/bash
 required="7.0"
 version=$(cat /etc/debian_version)
 required=$(echo $required|sed 's/\.//g')
@@ -40,9 +39,6 @@ echo "e) Exit"
 read choice
 case $choice in
 1)
-
-cat /etc/debian_version
-
 echo "Installing Apache2 and PHP5"
 apt-get update
 wait
