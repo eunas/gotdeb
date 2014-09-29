@@ -772,7 +772,7 @@ EOM
 /bin/cat <<EOM >/etc/ssmtp/revaliases
 root:$mmail:smtp.mandrillapp.com:587
 EOM
-sed -i "s|;sendmail_path =|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/apache2/php.ini
+sed -i "s|.*sendmail_path.*|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/apache2/php.ini
 break
 ;;
 2)
@@ -800,7 +800,7 @@ EOM
 /bin/cat <<EOM >/etc/ssmtp/revaliases
 root:$gmail:smtp.gmail.com:587
 EOM
-sed -i "s|;sendmail_path =|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/apache2/php.ini
+sed -i "s|.*sendmail_path.*|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/apache2/php.ini
 break
 ;;
 e)
