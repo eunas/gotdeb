@@ -19,6 +19,7 @@ Run the script and follow the assistant:
 * OpenVPN Server (includes option for NATed VPS)
 * Squid3 Proxy Server
 * Google Authenticator
+* ssmtp
 
 ###Disclaimer
 Parts of the files are scripts found on various sites on the internet, and modified or included.
