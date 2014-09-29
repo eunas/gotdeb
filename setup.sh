@@ -32,7 +32,7 @@ echo "8) pptp server"
 echo "9) OpenVPN Server"
 echo "10) Squid3 Proxy Server"
 echo "11) Google Authenticator"
-echo "12) sSMTP server (Coming soon)"
+echo "12) sSMTP server"
 echo "13) Add user"
 echo "14) Delete user"
 echo "15) User www dir"
@@ -723,11 +723,99 @@ echo " "
 break
 ;;
 12)
-echo "eSMTP install coming soon."
+problem=$(dpkg -s ssmtp|grep installed)
+if [ "" == "$problem" ]; then
+apt-get update
+wait
+apt-get install ssmtp -y
+wait
+echo "Configure ssmtp now y/n ?"
+read con
+else
+echo "ssmtp is already installed. Configure it now y/n ?"
+read con
+fi
+if [ "$con" != "y" ]; then
+echo "Exiting"
+exit
+fi
+
+if [ "$con" == "y" ]; then
+while true; do
+echo "Choose mail carrier:"
+echo "1) Mandrill"
+echo "2) Gmail"
+echo "e) Exit"
+read choice
+case $choice in
+1)
+echo "specify email address"
+read mmail
+echo "Server hostname"
+read mhost
+echo "Your mandril login mail"
+read mlogin
+echo "mandril api key"
+read mapikey
+/bin/cat <<EOM >/etc/ssmtp/ssmtp.conf
+# ---- basic config
+root=$mmail
+AuthMethod=LOGIN
+UseSTARTTLS=YES
+hostname=$mhost
+FromLineOverride=YES
+# ---- mandrill config
+AuthUser=$mlogin
+mailhub=smtp.mandrillapp.com:587
+AuthPass=$mapikey
+EOM
+/bin/cat <<EOM >/etc/ssmtp/revaliases
+root:$mmail:smtp.mandrillapp.com:587
+EOM
+sed -i "s|;sendmail_path =|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/apache2/php.ini
+break
+;;
+2)
+echo "specify email address"
+read gmail
+echo "Servers hostname"
+read ghost
+echo "Gmail address"
+read glogin
+echo "Gmail password"
+read gapikey
+/bin/cat <<EOM >/etc/ssmtp/ssmtp.conf
+# ---- basic config
+root=$gmail
+AuthMethod=LOGIN
+UseTLS=YES
+UseSTARTTLS=YES
+hostname=$ghost
+FromLineOverride=YES
+# ---- gmail config
+AuthUser=$glogin
+mailhub=smtp.gmail.com:587
+AuthPass=$gapikey
+EOM
+/bin/cat <<EOM >/etc/ssmtp/revaliases
+root:$gmail:smtp.gmail.com:587
+EOM
+sed -i "s|;sendmail_path =|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/apache2/php.ini
+break
+;;
+e)
+break
+;;
+     *)
+     echo "That is not a valid choice, try a number from 1 to 2."
+     ;;
+esac
+done
+fi
 break
 ;;
 13)
-echo "Enter username and passwed for the user you wish to create."
+echo "Enter username and password for the user you wish to create."
 echo "Enter username"
 read username
 useradd -d /home/$username $username
@@ -770,7 +858,7 @@ e)
 break
 ;;
      *)
-     echo "That is not a valid choice, try a number from 0 to 18."
+     echo "That is not a valid choice, try a number from 1 to 18."
      ;;
 esac
 done
