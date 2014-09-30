@@ -22,23 +22,24 @@ fi
 while true; do
 echo "Choose what you want to install:"
 echo "1) Apache2 and PHP5"
-echo "2) MySQL Server and phpMyAdmin"
-echo "3) rcconf"
-echo "4) vsftpd"
-echo "5) Java 7 JDK"
-echo "6) lftp"
-echo "7) MCMyAdmin x64"
-echo "8) pptp server"
-echo "9) OpenVPN Server"
-echo "10) Squid3 Proxy Server"
-echo "11) Google Authenticator"
-echo "12) sSMTP server"
-echo "13) Add user"
-echo "14) Delete user"
-echo "15) User www dir"
-echo "16) List users"
-echo "17) Get OS Version"
-echo "18) About"
+echo "2) nginx and PHP5"
+echo "3) MySQL Server and phpMyAdmin"
+echo "4) rcconf"
+echo "5) vsftpd"
+echo "6) Java 7 JDK"
+echo "7) lftp"
+echo "8) MCMyAdmin x64"
+echo "9) pptp server"
+echo "10) OpenVPN Server"
+echo "11) Squid3 Proxy Server"
+echo "12) Google Authenticator"
+echo "13) sSMTP server"
+echo "14) Add user"
+echo "15) Delete user"
+echo "16) User www dir"
+echo "17) List users"
+echo "18) Get OS Version"
+echo "19) About"
 echo "e) Exit"
 read choice
 case $choice in
@@ -66,6 +67,8 @@ a2enmod rewrite
 wait
 sed -i '11 s/AllowOverride None/AllowOverride All/' /etc/apache2/sites-enabled/000-default
 sed -i 's/webmaster@localhost/'$e'/' /etc/apache2/sites-enabled/000-default
+sed -i 's/webmaster@localhost/'$e'/' /etc/apache2/sites-available/default
+sed -i 's/webmaster@localhost/'$e'/' /etc/apache2/sites-available/default-ssl 
 wait
 if grep -q dotdeb "/etc/apt/sources.list"; then
 sed -i '/packages.dotdeb.org/d' /etc/apt/sources.list
@@ -87,6 +90,79 @@ echo "php5-sqlite php5-tidy php5-xmlrpc php5-xsl"
 break
 ;;
 2)
+nginx=$(dpkg -s nginx|grep installed)
+if [ "" != "$nginx" ]; then
+echo "nginx is already installed"
+exit
+fi
+apache=$(dpkg -s apache2|grep installed)
+if [ "" != "$apache" ]; then
+echo "Apache2 will be removed."
+service apache2 stop
+wait
+apt-get remove apache2 -y
+fi
+if ! grep -q dotdeb "/etc/apt/sources.list"; then
+sed -i '$a\deb http://packages.dotdeb.org wheezy all' /etc/apt/sources.list
+sed -i '$a\deb-src http://packages.dotdeb.org wheezy all' /etc/apt/sources.list
+wget http://www.dotdeb.org/dotdeb.gpg
+wait
+apt-key add dotdeb.gpg
+wait
+rm dotdeb.gpg
+apt-get update
+wait
+apt-get install nginx -y
+wait
+fi
+sed -i '/packages.dotdeb.org/d' /etc/apt/sources.list
+wait
+apt-get update
+wait
+apt-get install php5-fpm php5-common -y
+wait
+sed -i "s|.*cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
+/bin/cat <<"EOM" >/etc/nginx/sites-available/default
+ server {
+    listen 80 default_server;
+    listen [::]:80 default_server ipv6only=on;
+
+    root /usr/share/nginx/html;
+    index index.php index.html index.htm;
+
+    server_name
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    error_page 404 /404.html;
+    error_page 500 502 503 504 /50x.html;
+    location = /50x.html {
+        root /usr/share/nginx/html;
+    }
+
+	location ~ \.php$ {
+        try_files $uri $uri/ =404;
+        fastcgi_split_path_info ^(.+\.php)(/.+)$;
+        fastcgi_pass unix:/var/run/php5-fpm.sock;
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        fastcgi_index index.php;
+        include fastcgi_params;
+    }
+}
+EOM
+echo "IP or hostname"
+read sn
+sed -i "s|server_name|server_name "$sn";|" /etc/nginx/sites-available/default
+service php5-fpm restart
+wait
+touch /usr/share/nginx/html/info.php
+echo $'<?php\nphpinfo();\n?>' > /usr/share/nginx/html/info.php
+echo "nginx and php 5 installed"
+break
+;;
+3)
 apache=$(dpkg -s apache2|grep installed)
 if [ "" == "$apache" ]; then
       echo "Please install apache2 before mysql."  1>&2
@@ -118,7 +194,7 @@ exit 1
 fi
 break
 ;;
-3)
+4)
 problem=$(dpkg -s rcconf|grep installed)
 echo Checking for rcconf: $problem
 if [ "" == "$problem" ]; then
@@ -131,7 +207,7 @@ echo "rcconf installed"
 fi
 break
 ;;
-4)
+5)
 problem=$(dpkg -s vsftpd|grep installed)
 echo Checking for vsftpd: $problem
 if [ "" != "$problem" ]; then
@@ -162,15 +238,15 @@ echo "vsftpd installed, config file updated."
 fi
 break
 ;;
-5)
+6)
 apt-get -y install openjdk-7-jdk
 break
 ;;
-6)
+7)
 apt-get -y install lftp
 break
 ;;
-7)
+8)
 apt-get -y install unzip
 echo "Enter username for the user who should run the minecraft process"
 echo "Enter username"
@@ -198,7 +274,7 @@ echo "McMyAdmin installed in /home/$username/minecraft"
 echo "Run ./MCMA2_Linux_x86_64 -setpass YOURPASSWORD -configonly"
 break
 ;;
-8)
+9)
 problem=$(dpkg -s pptpd|grep installed)
 echo Checking for pptpd: $problem
 if [ "" != "$problem" ]; then
@@ -351,7 +427,7 @@ fi
 fi
 break
 ;;
-9)
+10)
 if [[ ! -e /dev/net/tun ]]; then
 	echo "TUN/TAP is not available"
 	exit
@@ -563,7 +639,7 @@ else
 fi
 break
 ;;
-10)
+11)
 problem=$(dpkg -s squid3|grep installed)
 echo Checking for squid3: $problem
 if [ "" != "$problem" ]; then
@@ -699,7 +775,7 @@ echo " "
 fi
 break
 ;;
-11)
+12)
 apt-get install libqrencode3
 wait
 wget http://ftp.us.debian.org/debian/pool/main/g/google-authenticator/libpam-google-authenticator_20130529-2_amd64.deb
@@ -722,7 +798,7 @@ echo " "
 echo " "
 break
 ;;
-12)
+13)
 problem=$(dpkg -s ssmtp|grep installed)
 if [ "" == "$problem" ]; then
 apt-get update
@@ -735,7 +811,7 @@ else
 echo "ssmtp is already installed. Configure it now y/n ?"
 read con
 fi
-if [ "$con" != "y" ]; then
+if [ "$con" != "y" ] || [ "$con" != "yes" ]; then
 echo "Exiting"
 exit
 fi
@@ -772,9 +848,13 @@ EOM
 /bin/cat <<EOM >/etc/ssmtp/revaliases
 root:$mmail:smtp.mandrillapp.com:587
 EOM
-problem=$(dpkg -s php5|grep installed)
-if [ "" != "$problem" ]; then
+php=$(dpkg -s php5|grep installed)
+if [ "" != "$php" ]; then
 sed -i "s|.*sendmail_path.*|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/apache2/php.ini
+fi
+php-fpm=$(dpkg -s php5-fpm|grep installed)
+if [ "" != "$php-fpm" ]; then
+sed -i "s|.*sendmail_path.*|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/fpm/php.ini
 fi
 break
 ;;
@@ -820,7 +900,7 @@ done
 fi
 break
 ;;
-13)
+14)
 echo "Enter username and password for the user you wish to create."
 echo "Enter username"
 read username
@@ -834,27 +914,27 @@ passwd $username
 echo "User $username added with home dir /home/$username"
 break
 ;;
-14)
+15)
 echo "Enter username"
 read username
 deluser $username
 echo "User: $username deleted. Home directory is still intact"
 break
 ;;
-15)
+16)
 echo "Coming soon."
 break
 ;;
-16)
+17)
 echo"------system users------"
 cut -d: -f1 /etc/passwd
 break
 ;;
-17)
+18)
 lsb_release -a
 break
 ;;
-18)
+19)
 echo "Interactive essentials install script for VPS or Dedicated servers."
 echo "Tested on Debian 7.5 +"
 echo "https://github.com/eunas/essentials"
@@ -864,7 +944,7 @@ e)
 break
 ;;
      *)
-     echo "That is not a valid choice, try a number from 1 to 18."
+     echo "That is not a valid choice, try a number from 1 to 19."
      ;;
 esac
 done
