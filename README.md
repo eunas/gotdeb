@@ -11,6 +11,7 @@ Run the script and follow the assistant:
 
 ###Script content
 * Apache2 & PHP 5.6
+* Nginx & PHP 5.4
 * MySql & phpMyadmin
 * vsftpd
 * Java 7 JDK
