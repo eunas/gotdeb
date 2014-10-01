@@ -152,10 +152,10 @@ sed -i "s|.*cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
     }
 }
 EOM
-echo "IP or hostname"
-read sn
-sed -i "s|server_name|server_name "$sn";|" /etc/nginx/sites-available/default
+IP=$(ifconfig | grep 'inet addr:' | grep -v inet6 | grep -vE '127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut -d: -f2 | awk '{ print $1}' | head -1)
+sed -i "s|server_name|server_name "$IP";|" /etc/nginx/sites-available/default
 service php5-fpm restart
+service nginx restart
 wait
 touch /usr/share/nginx/html/info.php
 echo $'<?php\nphpinfo();\n?>' > /usr/share/nginx/html/info.php
@@ -811,12 +811,10 @@ else
 echo "ssmtp is already installed. Configure it now y/n ?"
 read con
 fi
-if [ "$con" != "y" ] || [ "$con" != "yes" ]; then
+if [ "$con" != "y" ]; then
 echo "Exiting"
 exit
-fi
-
-if [ "$con" == "y" ]; then
+elif [ "$con" == "y" ]; then
 while true; do
 echo "Choose mail carrier:"
 echo "1) Mandrill"
@@ -848,14 +846,6 @@ EOM
 /bin/cat <<EOM >/etc/ssmtp/revaliases
 root:$mmail:smtp.mandrillapp.com:587
 EOM
-php=$(dpkg -s php5|grep installed)
-if [ "" != "$php" ]; then
-sed -i "s|.*sendmail_path.*|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/apache2/php.ini
-fi
-php-fpm=$(dpkg -s php5-fpm|grep installed)
-if [ "" != "$php-fpm" ]; then
-sed -i "s|.*sendmail_path.*|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/fpm/php.ini
-fi
 break
 ;;
 2)
@@ -883,9 +873,11 @@ EOM
 /bin/cat <<EOM >/etc/ssmtp/revaliases
 root:$gmail:smtp.gmail.com:587
 EOM
-problem=$(dpkg -s php5|grep installed)
-if [ "" != "$problem" ]; then
+if [ -f /etc/php5/apache2/php.ini ]; then
 sed -i "s|.*sendmail_path.*|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/apache2/php.ini
+fi
+if [ -f /etc/php5/fpm/php.ini ]; then
+sed -i "s|.*sendmail_path.*|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/fpm/php.ini
 fi
 break
 ;;
