@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 #!/bin/bash
 # Interactive essentials install script for VPS or Dedicated servers.
 # https://github.com/eunas/essentials
