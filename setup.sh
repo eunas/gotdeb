@@ -119,7 +119,7 @@ sed -i '/packages.dotdeb.org/d' /etc/apt/sources.list
 wait
 apt-get update
 wait
-apt-get install php5-fpm php5-common -y
+apt-get install php5-fpm php5-common php-apc -y
 wait
 sed -i "s|.*cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
 /bin/cat <<"EOM" >/etc/nginx/sites-available/default
@@ -151,6 +151,16 @@ sed -i "s|.*cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
         include fastcgi_params;
     }
 }
+EOM
+/bin/cat <<EOM >/etc/php5/fpm/conf.d/20-apc.ini
+extension=apc.so
+
+apc.enabled=1
+apc.shm_size=128M
+apc.ttl=3600
+apc.user_ttl=7200
+apc.gc_ttl=3600
+apc.max_file_size=1M
 EOM
 IP=$(ifconfig | grep 'inet addr:' | grep -v inet6 | grep -vE '127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut -d: -f2 | awk '{ print $1}' | head -1)
 sed -i "s|server_name|server_name "$IP";|" /etc/nginx/sites-available/default
