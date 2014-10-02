@@ -90,13 +90,11 @@ echo "php5-sqlite php5-tidy php5-xmlrpc php5-xsl"
 break
 ;;
 2)
-nginx=$(dpkg -s nginx|grep installed)
-if [ "" != "$nginx" ]; then
+if [ $(dpkg-query -W -f='${Status}' ssmtp 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
 echo "nginx is already installed"
 exit
 fi
-apache=$(dpkg -s apache2|grep installed)
-if [ "" != "$apache" ]; then
+if [ $(dpkg-query -W -f='${Status}' apache2 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
 echo "Apache2 will be removed."
 service apache2 stop
 wait
@@ -119,7 +117,7 @@ sed -i '/packages.dotdeb.org/d' /etc/apt/sources.list
 wait
 apt-get update
 wait
-apt-get install php5-fpm php5-common -y
+apt-get install php5-fpm php5-common php-apc -y
 wait
 sed -i "s|.*cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
 /bin/cat <<"EOM" >/etc/nginx/sites-available/default
@@ -152,10 +150,20 @@ sed -i "s|.*cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
     }
 }
 EOM
-echo "IP or hostname"
-read sn
-sed -i "s|server_name|server_name "$sn";|" /etc/nginx/sites-available/default
+/bin/cat <<EOM >/etc/php5/fpm/conf.d/20-apc.ini
+extension=apc.so
+
+apc.enabled=1
+apc.shm_size=128M
+apc.ttl=3600
+apc.user_ttl=7200
+apc.gc_ttl=3600
+apc.max_file_size=1M
+EOM
+IP=$(ifconfig | grep 'inet addr:' | grep -v inet6 | grep -vE '127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut -d: -f2 | awk '{ print $1}' | head -1)
+sed -i "s|server_name|server_name "$IP";|" /etc/nginx/sites-available/default
 service php5-fpm restart
+service nginx restart
 wait
 touch /usr/share/nginx/html/info.php
 echo $'<?php\nphpinfo();\n?>' > /usr/share/nginx/html/info.php
@@ -163,14 +171,11 @@ echo "nginx and php 5 installed"
 break
 ;;
 3)
-apache=$(dpkg -s apache2|grep installed)
-if [ "" == "$apache" ]; then
-      echo "Please install apache2 before mysql."  1>&2
+if [ $(dpkg-query -W -f='${Status}' apache2 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
+      echo "Please install apache2 before mysql."
 exit 1
 fi
-problem=$(dpkg -s mysql-server|grep installed)
-echo Checking for MySQL: $problem
-if [ "" == "$problem" ]; then
+if [ $(dpkg-query -W -f='${Status}' mysql-server 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
       echo "No MySQL. Installing....."
 apt-get update
 wait
@@ -195,9 +200,7 @@ fi
 break
 ;;
 4)
-problem=$(dpkg -s rcconf|grep installed)
-echo Checking for rcconf: $problem
-if [ "" == "$problem" ]; then
+if [ $(dpkg-query -W -f='${Status}' rcconf 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
       echo "No rcconf. Installing....."
       apt-get update
       wait
@@ -208,9 +211,7 @@ fi
 break
 ;;
 5)
-problem=$(dpkg -s vsftpd|grep installed)
-echo Checking for vsftpd: $problem
-if [ "" != "$problem" ]; then
+if [ $(dpkg-query -W -f='${Status}' vsftpd 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
       echo "vsftpd is already installed. use apt-get --purge remove vsftpd to uninstall"
 exit 1
 fi
@@ -275,9 +276,7 @@ echo "Run ./MCMA2_Linux_x86_64 -setpass YOURPASSWORD -configonly"
 break
 ;;
 9)
-problem=$(dpkg -s pptpd|grep installed)
-echo Checking for pptpd: $problem
-if [ "" != "$problem" ]; then
+if [ $(dpkg-query -W -f='${Status}' pptpd 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
       echo "pptpd is already installed. use apt-get --purge remove pptpd to uninstall"
 exit 1
 fi
@@ -640,9 +639,7 @@ fi
 break
 ;;
 11)
-problem=$(dpkg -s squid3|grep installed)
-echo Checking for squid3: $problem
-if [ "" != "$problem" ]; then
+if [ $(dpkg-query -W -f='${Status}' squid3 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
       echo "squid3 is already installed. use apt-get --purge remove squid3 to uninstall"
 exit 1
 fi
@@ -799,8 +796,8 @@ echo " "
 break
 ;;
 13)
-problem=$(dpkg -s ssmtp|grep installed)
-if [ "" == "$problem" ]; then
+if [ $(dpkg-query -W -f='${Status}' ssmtp 2>/dev/null | grep -c "ok installed") -eq 0 ];
+then
 apt-get update
 wait
 apt-get install ssmtp -y
@@ -811,12 +808,10 @@ else
 echo "ssmtp is already installed. Configure it now y/n ?"
 read con
 fi
-if [ "$con" != "y" ] || [ "$con" != "yes" ]; then
+if [ "$con" != "y" ]; then
 echo "Exiting"
 exit
 fi
-
-if [ "$con" == "y" ]; then
 while true; do
 echo "Choose mail carrier:"
 echo "1) Mandrill"
@@ -848,14 +843,6 @@ EOM
 /bin/cat <<EOM >/etc/ssmtp/revaliases
 root:$mmail:smtp.mandrillapp.com:587
 EOM
-php=$(dpkg -s php5|grep installed)
-if [ "" != "$php" ]; then
-sed -i "s|.*sendmail_path.*|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/apache2/php.ini
-fi
-php-fpm=$(dpkg -s php5-fpm|grep installed)
-if [ "" != "$php-fpm" ]; then
-sed -i "s|.*sendmail_path.*|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/fpm/php.ini
-fi
 break
 ;;
 2)
@@ -883,9 +870,11 @@ EOM
 /bin/cat <<EOM >/etc/ssmtp/revaliases
 root:$gmail:smtp.gmail.com:587
 EOM
-problem=$(dpkg -s php5|grep installed)
-if [ "" != "$problem" ]; then
+if [ -f /etc/php5/apache2/php.ini ]; then
 sed -i "s|.*sendmail_path.*|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/apache2/php.ini
+fi
+if [ -f /etc/php5/fpm/php.ini ]; then
+sed -i "s|.*sendmail_path.*|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/fpm/php.ini
 fi
 break
 ;;
@@ -897,7 +886,6 @@ break
      ;;
 esac
 done
-fi
 break
 ;;
 14)
