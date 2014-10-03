@@ -149,6 +149,7 @@ sed -i "s|.*cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
         include fastcgi_params;
     }
 }
+EOM
 sed -i "s|.*# gzip_vary on.*|        gzip_vary on;|" /etc/nginx/nginx.conf
 sed -i "s|.*# gzip_proxied any.*|        gzip_proxied any;|" /etc/nginx/nginx.conf
 sed -i "s|.*# gzip_comp_level 6.*|        gzip_comp_level 6;|" /etc/nginx/nginx.conf
