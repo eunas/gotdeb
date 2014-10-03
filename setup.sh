@@ -90,7 +90,7 @@ echo "php5-sqlite php5-tidy php5-xmlrpc php5-xsl"
 break
 ;;
 2)
-if [ $(dpkg-query -W -f='${Status}' ngnix 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
+if [ $(dpkg-query -W -f='${Status}' nginx 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
 echo "nginx is already installed"
 exit
 fi
