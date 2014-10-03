@@ -90,7 +90,7 @@ echo "php5-sqlite php5-tidy php5-xmlrpc php5-xsl"
 break
 ;;
 2)
-if [ $(dpkg-query -W -f='${Status}' ssmtp 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
+if [ $(dpkg-query -W -f='${Status}' ngnix 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
 echo "nginx is already installed"
 exit
 fi
@@ -149,7 +149,12 @@ sed -i "s|.*cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
         include fastcgi_params;
     }
 }
-EOM
+sed -i "s|.*# gzip_vary on.*|        gzip_vary on;|" /etc/nginx/nginx.conf
+sed -i "s|.*# gzip_proxied any.*|        gzip_proxied any;|" /etc/nginx/nginx.conf
+sed -i "s|.*# gzip_comp_level 6.*|        gzip_comp_level 6;|" /etc/nginx/nginx.conf
+sed -i "s|.*# gzip_buffers 16 8k.*|         gzip_buffers 16 8k;|" /etc/nginx/nginx.conf
+sed -i "s|.*# gzip_http_version 1.1.*|        gzip_http_version 1.1;|" /etc/nginx/nginx.conf
+sed -i "s|.*# gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript.*|        gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;|" /etc/nginx/nginx.conf
 /bin/cat <<EOM >/etc/php5/fpm/conf.d/20-apc.ini
 extension=apc.so
 
