@@ -24,22 +24,23 @@ echo "Choose what you want to install:"
 echo "1) Apache2 and PHP5"
 echo "2) nginx and PHP5"
 echo "3) MySQL Server and phpMyAdmin"
-echo "4) rcconf"
-echo "5) vsftpd"
-echo "6) Java 7 JDK"
-echo "7) lftp"
-echo "8) MCMyAdmin x64"
-echo "9) pptp server"
-echo "10) OpenVPN Server"
-echo "11) Squid3 Proxy Server"
-echo "12) Google Authenticator"
-echo "13) sSMTP server"
-echo "14) Add user"
-echo "15) Delete user"
-echo "16) User www dir"
-echo "17) List users"
-echo "18) Get OS Version"
-echo "19) About"
+echo "4) MariaDB and phpMyAdmin"
+echo "5) rcconf"
+echo "6) vsftpd"
+echo "7) Java 7 JDK"
+echo "8) lftp"
+echo "9) MCMyAdmin x64"
+echo "10) pptp server"
+echo "11) OpenVPN Server"
+echo "12) Squid3 Proxy Server"
+echo "13) Google Authenticator"
+echo "14) sSMTP server"
+echo "15) Add user"
+echo "16) Delete user"
+echo "17) User www dir"
+echo "18) List users"
+echo "19) Get OS Version"
+echo "20) About"
 echo "e) Exit"
 read choice
 case $choice in
@@ -117,7 +118,7 @@ sed -i '/packages.dotdeb.org/d' /etc/apt/sources.list
 wait
 apt-get update
 wait
-apt-get install php5-fpm php5-common php-apc -y
+apt-get install php5-fpm php5-common php5-mysql php5-cli php5-mcrypt php5-curl curl php5-gd php-apc -y
 wait
 sed -i "s|.*cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
 /bin/cat <<"EOM" >/etc/nginx/sites-available/default
@@ -178,7 +179,15 @@ break
 ;;
 3)
 if [ $(dpkg-query -W -f='${Status}' apache2 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
-      echo "Please install apache2 before mysql."
+      echo "Please install apache2 or nginx before mysql."
+exit 1
+fi
+if [ $(dpkg-query -W -f='${Status}' nginx 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
+      echo "Please install apache2 or nginx before mysql."
+exit 1
+fi
+if [ $(dpkg-query -W -f='${Status}' mariadb-server 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
+      echo "MariaDB already installed."
 exit 1
 fi
 if [ $(dpkg-query -W -f='${Status}' mysql-server 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
@@ -187,9 +196,19 @@ apt-get update
 wait
 apt-get -y install mysql-server mysql-client
 wait
+mysql_secure_installation
+wait
+if [ $(dpkg-query -W -f='${Status}' nginx 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
+echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect none" | debconf-set-selections
+echo "phpmyadmin phpmyadmin/dbconfig-install boolean true" | debconf-set-selections
 apt-get install phpmyadmin -y
 wait
-mysql_secure_installation
+ln -s /usr/share/phpmyadmin/ /usr/share/nginx/html
+service nginx restart
+else
+echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect apache2" | debconf-set-selections
+echo "phpmyadmin phpmyadmin/dbconfig-install boolean true" | debconf-set-selections
+apt-get install phpmyadmin -y
 wait
 sed -i '/skip-external-locking/ a\innodb=OFF' /etc/mysql/my.cnf
 sed -i '/innodb=OFF/ a\default-storage-engine=MyISAM' /etc/mysql/my.cnf
@@ -199,13 +218,53 @@ wait
 service mysql start
 wait
 echo "MySQL server and phpMyAdmin installed, default storage engine is MyISAM, InnoDB disabled."
-elif [ "" != "$problem" ]; then
-      echo "MySQL is already installed."  1>&2
-exit 1
+fi
 fi
 break
 ;;
 4)
+if [ $(dpkg-query -W -f='${Status}' mariadb-server 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
+      echo "MariaDB already installed."
+exit 1
+fi
+if [ $(dpkg-query -W -f='${Status}' mysql-server 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
+echo "MySQL will be removed."
+service mysqld stop
+wait
+apt-get remove mysql-server -y
+fi
+if ! grep -q mariadb "/etc/apt/sources.list"; then
+sed -i '$a\deb http://nyc2.mirrors.digitalocean.com/mariadb/repo/10.0/debian wheezy main' /etc/apt/sources.list
+sed -i '$a\deb-src http://nyc2.mirrors.digitalocean.com/mariadb/repo/10.0/debian wheezy main' /etc/apt/sources.list
+fi
+apt-key adv --recv-keys --keyserver keyserver.ubuntu.com 0xcbcb082a1bb943db
+wait
+add-apt-repository 'deb http://nyc2.mirrors.digitalocean.com/mariadb/repo/10.0/debian wheezy main'
+wait
+apt-get update
+wait
+apt-get install python-software-properties -y
+wait
+apt-get install mariadb-server mariadb-client -y
+wait
+mysql_secure_installation
+wait
+if [ $(dpkg-query -W -f='${Status}' nginx 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
+echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect none" | debconf-set-selections
+echo "phpmyadmin phpmyadmin/dbconfig-install boolean true" | debconf-set-selections
+apt-get install phpmyadmin -y
+wait
+ln -s /usr/share/phpmyadmin/ /usr/share/nginx/html
+service nginx restart
+else
+#echo PURGE | debconf-communicate packagename
+echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect apache2" | debconf-set-selections
+echo "phpmyadmin phpmyadmin/dbconfig-install boolean true" | debconf-set-selections
+apt-get install phpmyadmin -y
+fi
+break
+;;
+5)
 if [ $(dpkg-query -W -f='${Status}' rcconf 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
       echo "No rcconf. Installing....."
       apt-get update
@@ -216,7 +275,7 @@ echo "rcconf installed"
 fi
 break
 ;;
-5)
+6)
 if [ $(dpkg-query -W -f='${Status}' vsftpd 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
       echo "vsftpd is already installed. use apt-get --purge remove vsftpd to uninstall"
 exit 1
@@ -245,15 +304,15 @@ echo "vsftpd installed, config file updated."
 fi
 break
 ;;
-6)
+7)
 apt-get -y install openjdk-7-jdk
 break
 ;;
-7)
+8)
 apt-get -y install lftp
 break
 ;;
-8)
+9)
 apt-get -y install unzip
 echo "Enter username for the user who should run the minecraft process"
 echo "Enter username"
@@ -281,7 +340,7 @@ echo "McMyAdmin installed in /home/$username/minecraft"
 echo "Run ./MCMA2_Linux_x86_64 -setpass YOURPASSWORD -configonly"
 break
 ;;
-9)
+10)
 if [ $(dpkg-query -W -f='${Status}' pptpd 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
       echo "pptpd is already installed. use apt-get --purge remove pptpd to uninstall"
 exit 1
@@ -432,7 +491,7 @@ fi
 fi
 break
 ;;
-10)
+11)
 if [[ ! -e /dev/net/tun ]]; then
 	echo "TUN/TAP is not available"
 	exit
@@ -644,7 +703,7 @@ else
 fi
 break
 ;;
-11)
+12)
 if [ $(dpkg-query -W -f='${Status}' squid3 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
       echo "squid3 is already installed. use apt-get --purge remove squid3 to uninstall"
 exit 1
@@ -778,7 +837,7 @@ echo " "
 fi
 break
 ;;
-12)
+13)
 apt-get install libqrencode3
 wait
 wget http://ftp.us.debian.org/debian/pool/main/g/google-authenticator/libpam-google-authenticator_20130529-2_amd64.deb
@@ -801,7 +860,7 @@ echo " "
 echo " "
 break
 ;;
-13)
+14)
 if [ $(dpkg-query -W -f='${Status}' ssmtp 2>/dev/null | grep -c "ok installed") -eq 0 ];
 then
 apt-get update
@@ -894,7 +953,7 @@ esac
 done
 break
 ;;
-14)
+15)
 echo "Enter username and password for the user you wish to create."
 echo "Enter username"
 read username
@@ -908,27 +967,27 @@ passwd $username
 echo "User $username added with home dir /home/$username"
 break
 ;;
-15)
+16)
 echo "Enter username"
 read username
 deluser $username
 echo "User: $username deleted. Home directory is still intact"
 break
 ;;
-16)
+17)
 echo "Coming soon."
 break
 ;;
-17)
+18)
 echo"------system users------"
 cut -d: -f1 /etc/passwd
 break
 ;;
-18)
+19)
 lsb_release -a
 break
 ;;
-19)
+20)
 echo "Interactive essentials install script for VPS or Dedicated servers."
 echo "Tested on Debian 7.5 +"
 echo "https://github.com/eunas/essentials"
@@ -938,7 +997,7 @@ e)
 break
 ;;
      *)
-     echo "That is not a valid choice, try a number from 1 to 19."
+     echo "That is not a valid choice, try a number from 1 to 20."
      ;;
 esac
 done
