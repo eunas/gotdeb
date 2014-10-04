@@ -13,6 +13,7 @@ Run the script and follow the assistant:
 * Apache2 & PHP 5.6
 * Nginx & PHP 5.4
 * MySql & phpMyadmin
+* MariaDB & phpMyadmin
 * vsftpd
 * Java 7 JDK
 * MCMyAdmin x64
