@@ -114,11 +114,10 @@ wait
 apt-get install nginx -y
 wait
 fi
-sed -i '/packages.dotdeb.org/d' /etc/apt/sources.list
 wait
 apt-get update
 wait
-apt-get install php5-fpm php5-common php5-mysql php5-cli php5-mcrypt php5-curl curl php5-gd php-apc -y
+apt-get install php5-fpm php5-common php5-mysql php5-cli php5-mcrypt php5-curl curl php5-gd -y
 wait
 sed -i "s|.*cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
 /bin/cat <<"EOM" >/etc/nginx/sites-available/default
@@ -157,16 +156,6 @@ sed -i "s|.*# gzip_comp_level 6.*|        gzip_comp_level 6;|" /etc/nginx/nginx.
 sed -i "s|.*# gzip_buffers 16 8k.*|         gzip_buffers 16 8k;|" /etc/nginx/nginx.conf
 sed -i "s|.*# gzip_http_version 1.1.*|        gzip_http_version 1.1;|" /etc/nginx/nginx.conf
 sed -i "s|.*# gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript.*|        gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;|" /etc/nginx/nginx.conf
-/bin/cat <<EOM >/etc/php5/fpm/conf.d/20-apc.ini
-extension=apc.so
-
-apc.enabled=1
-apc.shm_size=128M
-apc.ttl=3600
-apc.user_ttl=7200
-apc.gc_ttl=3600
-apc.max_file_size=1M
-EOM
 IP=$(ifconfig | grep 'inet addr:' | grep -v inet6 | grep -vE '127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut -d: -f2 | awk '{ print $1}' | head -1)
 sed -i "s|server_name|server_name "$IP";|" /etc/nginx/sites-available/default
 service php5-fpm restart
@@ -174,6 +163,7 @@ service nginx restart
 wait
 touch /usr/share/nginx/html/info.php
 echo $'<?php\nphpinfo();\n?>' > /usr/share/nginx/html/info.php
+sed -i '/packages.dotdeb.org/d' /etc/apt/sources.list
 echo "nginx and php 5 installed"
 break
 ;;
