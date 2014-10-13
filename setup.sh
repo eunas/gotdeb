@@ -266,12 +266,10 @@ fi
 break
 ;;
 6)
-if [ $(dpkg-query -W -f='${Status}' vsftpd 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
+if [ $(dpkg-query -W -f='${Status}' vsftpd 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
       echo "vsftpd is already installed. use apt-get --purge remove vsftpd to uninstall"
 exit 1
-fi
-if [ "" == "$problem" ]; then
-      echo "No vsftpd. Installing....."
+else
 apt-get -y install vsftpd python-software-properties
 wait
 apt-get update
@@ -331,12 +329,10 @@ echo "Run ./MCMA2_Linux_x86_64 -setpass YOURPASSWORD -configonly"
 break
 ;;
 10)
-if [ $(dpkg-query -W -f='${Status}' pptpd 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
+if [ $(dpkg-query -W -f='${Status}' pptpd 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
       echo "pptpd is already installed. use apt-get --purge remove pptpd to uninstall"
 exit 1
 fi
-if [ "" == "$problem" ]; then
-      echo "pptpd not found. Installing....."
 echo "######################################################"
 echo "Interactive PoPToP Install Script for an OpenVZ VPS"
 echo
@@ -477,7 +473,6 @@ echo "######################################################"
 else
 echo "Invalid selection, quitting."
 exit
-fi
 fi
 break
 ;;
