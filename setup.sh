@@ -26,7 +26,7 @@ echo "2) nginx and PHP5"
 echo "3) MySQL Server and phpMyAdmin"
 echo "4) MariaDB and phpMyAdmin"
 echo "5) rcconf"
-echo "6) vsftpd"
+echo "6) PureFTPD"
 echo "7) Java 7 JDK"
 echo "8) lftp"
 echo "9) MCMyAdmin x64"
@@ -36,7 +36,7 @@ echo "12) Squid3 Proxy Server"
 echo "13) Google Authenticator"
 echo "14) sSMTP server"
 echo "15) Add user"
-echo "16) Delete user"
+echo "16 Delete user"
 echo "17) User www dir"
 echo "18) List users"
 echo "19) Get OS Version"
@@ -266,29 +266,19 @@ fi
 break
 ;;
 6)
-if [ $(dpkg-query -W -f='${Status}' vsftpd 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
-      echo "vsftpd is already installed. use apt-get --purge remove vsftpd to uninstall"
+if [ $(dpkg-query -W -f='${Status}' pure-ftpd 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
+      echo "Pure-FTPd is already installed. use apt-get --purge remove pure-ftpd to uninstall"
 exit 1
 else
-apt-get -y install vsftpd python-software-properties
-wait
 apt-get update
 wait
-apt-get install vsftpd
+apt-get install pure-ftpd -y
 wait
-sed -i '$a\allow_writeable_chroot=YES' /etc/vsftpd.conf
-sed -i 's/anonymous_enable=YES/#anonymous_enable=YES/' /etc/vsftpd.conf
-sed -i 's/#local_enable=YES/local_enable=YES/' /etc/vsftpd.conf
-sed -i 's/#data_connection_timeout=120/data_connection_timeout=120/' /etc/vsftpd.conf
-sed -i 's/#idle_session_timeout=600/idle_session_timeout=600/' /etc/vsftpd.conf
-sed -i 's/#local_umask=022/local_umask=022/' /etc/vsftpd.conf
-sed -i 's/#write_enable=YES/write_enable=YES/' /etc/vsftpd.conf
-sed -i '120 s/#chroot_local_user=YES/chroot_local_user=YES/' /etc/vsftpd.conf
-sed -i '121 s/#chroot_list_enable=YES/chroot_list_enable=YES/' /etc/vsftpd.conf
-sed -i '123 s/#//' /etc/vsftpd.conf
-touch /etc/vsftpd.chroot_list
-service vsftpd restart
-echo "vsftpd installed, config file updated."
+echo "yes" > /etc/pure-ftpd/conf/Daemonize
+echo "yes" > /etc/pure-ftpd/conf/NoAnonymous
+echo "yes" > /etc/pure-ftpd/conf/ChrootEveryone
+service pure-ftpd restart
+echo "Pure-FTPd installed, config files updated."
 fi
 break
 ;;
