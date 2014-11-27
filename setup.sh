@@ -104,6 +104,8 @@ fi
 if ! grep -q dotdeb "/etc/apt/sources.list"; then
 sed -i '$a\deb http://packages.dotdeb.org wheezy all' /etc/apt/sources.list
 sed -i '$a\deb-src http://packages.dotdeb.org wheezy all' /etc/apt/sources.list
+sed -i '$a\deb http://packages.dotdeb.org wheezy-php56 all' /etc/apt/sources.list
+sed -i '$a\deb-src http://packages.dotdeb.org wheezy-php56 all' /etc/apt/sources.list
 wget http://www.dotdeb.org/dotdeb.gpg
 wait
 apt-key add dotdeb.gpg
@@ -150,6 +152,7 @@ sed -i "s|.*cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
     }
 }
 EOM
+sed -i "s|.*reload signal USR2.*|        #reload signal USR2|" /etc/init/php5-fpm.conf
 sed -i "s|.*# gzip_vary on.*|        gzip_vary on;|" /etc/nginx/nginx.conf
 sed -i "s|.*# gzip_proxied any.*|        gzip_proxied any;|" /etc/nginx/nginx.conf
 sed -i "s|.*# gzip_comp_level 6.*|        gzip_comp_level 6;|" /etc/nginx/nginx.conf
@@ -158,11 +161,17 @@ sed -i "s|.*# gzip_http_version 1.1.*|        gzip_http_version 1.1;|" /etc/ngin
 sed -i "s|.*# gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript.*|        gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;|" /etc/nginx/nginx.conf
 IP=$(ifconfig | grep 'inet addr:' | grep -v inet6 | grep -vE '127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut -d: -f2 | awk '{ print $1}' | head -1)
 sed -i "s|server_name|server_name "$IP";|" /etc/nginx/sites-available/default
-service php5-fpm restart
+service php5-fpm start
 service nginx restart
 wait
+mkdir /usr/share/nginx/html
+wait
 touch /usr/share/nginx/html/info.php
-echo $'<?php\nphpinfo();\n?>' > /usr/share/nginx/html/info.php
+/bin/cat <<"EOM" >/usr/share/nginx/html/info.php
+<?php
+phpinfo();
+?>
+EOM
 sed -i '/packages.dotdeb.org/d' /etc/apt/sources.list
 echo "nginx and php 5 installed"
 break
