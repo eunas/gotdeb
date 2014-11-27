@@ -14,7 +14,7 @@ Run the script and follow the assistant:
 * Nginx & PHP-FPM 5.4
 * MySql & phpMyadmin
 * MariaDB & phpMyadmin
-* vsftpd
+* PureFTPd
 * Java 7 JDK
 * MCMyAdmin x64
 * pptp server
