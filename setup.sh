@@ -15,7 +15,7 @@ version=$(cat /etc/debian_version)
 required=$(echo $required|sed 's/\.//g')
 version=$(echo $version|sed 's/\.//g')
 if [ $version -lt $required ]; then
-echo "You need to run Debian 7.0 or higher"
+echo "You need to run atleast Debian 7"
 exit 1
 fi
 
@@ -69,7 +69,7 @@ wait
 sed -i '11 s/AllowOverride None/AllowOverride All/' /etc/apache2/sites-enabled/000-default
 sed -i 's/webmaster@localhost/'$e'/' /etc/apache2/sites-enabled/000-default
 sed -i 's/webmaster@localhost/'$e'/' /etc/apache2/sites-available/default
-sed -i 's/webmaster@localhost/'$e'/' /etc/apache2/sites-available/default-ssl 
+sed -i 's/webmaster@localhost/'$e'/' /etc/apache2/sites-available/default-ssl
 wait
 if grep -q dotdeb "/etc/apt/sources.list"; then
 sed -i '/packages.dotdeb.org/d' /etc/apt/sources.list
@@ -96,32 +96,34 @@ echo "nginx is already installed"
 exit
 fi
 if [ $(dpkg-query -W -f='${Status}' apache2 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
-echo "Apache2 will be removed."
-service apache2 stop
-wait
+echo "Apache2 is already installed."
+echo "1) Uninstall it"
+echo "2) Stop and remove the service"
+read p
+if [ $p -eq 1 ]; then
 apt-get remove apache2 -y
+wait
+elif [ $p -eq 2 ]; then
+service apache2 stop
+update-rc.d -f apache2 remove
+else
+echo "Invalid choice"
+exit 1
 fi
+fi
+
 if ! grep -q dotdeb "/etc/apt/sources.list"; then
 sed -i '$a\deb http://packages.dotdeb.org wheezy all' /etc/apt/sources.list
 sed -i '$a\deb-src http://packages.dotdeb.org wheezy all' /etc/apt/sources.list
-sed -i '$a\deb http://packages.dotdeb.org wheezy-php56 all' /etc/apt/sources.list
-sed -i '$a\deb-src http://packages.dotdeb.org wheezy-php56 all' /etc/apt/sources.list
 wget http://www.dotdeb.org/dotdeb.gpg
-wait
 apt-key add dotdeb.gpg
 wait
 rm dotdeb.gpg
 apt-get update
 wait
-apt-get install nginx -y
-wait
 fi
+apt-get install -y nginx
 wait
-apt-get update
-wait
-apt-get install php5-fpm php5-common php5-mysql php5-cli php5-mcrypt php5-curl curl php5-gd -y
-wait
-sed -i "s|.*cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
 /bin/cat <<"EOM" >/etc/nginx/sites-available/default
  server {
     listen 80 default_server;
@@ -130,7 +132,7 @@ sed -i "s|.*cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
     root /usr/share/nginx/html;
     index index.php index.html index.htm;
 
-    server_name
+    server_name $d
 
     location / {
         try_files $uri $uri/ =404;
@@ -141,7 +143,6 @@ sed -i "s|.*cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
     location = /50x.html {
         root /usr/share/nginx/html;
     }
-
 	location ~ \.php$ {
         try_files $uri $uri/ =404;
         fastcgi_split_path_info ^(.+\.php)(/.+)$;
@@ -152,6 +153,27 @@ sed -i "s|.*cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
     }
 }
 EOM
+IP=$(ifconfig | grep 'inet addr:' | grep -v inet6 | grep -vE '127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut -d: -f2 | awk '{ print $1}' | head -1)
+echo "Enter Domain, leave blank to use IP"
+read d
+if [ -z "$d" ] ; then
+d="$IP"
+fi
+sed -i "s|.*server_name.*|        server_name "$d";|" /etc/nginx/sites-available/default
+service nginx restart
+####
+echo "Do you want to install PHP ? y/n"
+read a
+if [ $a = y ]; then
+if ! grep -q wheezy-php56 "/etc/apt/sources.list"; then
+sed -i '$a\deb http://packages.dotdeb.org wheezy-php56 all' /etc/apt/sources.list
+sed -i '$a\deb-src http://packages.dotdeb.org wheezy-php56 all' /etc/apt/sources.list
+apt-get update
+wait
+fi
+apt-get install php5-fpm php5-common php5-mysql php5-cli php5-mcrypt php5-curl curl php5-gd -y
+wait
+sed -i "s|.*cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
 sed -i "s|.*reload signal USR2.*|        #reload signal USR2|" /etc/init/php5-fpm.conf
 sed -i "s|.*# gzip_vary on.*|        gzip_vary on;|" /etc/nginx/nginx.conf
 sed -i "s|.*# gzip_proxied any.*|        gzip_proxied any;|" /etc/nginx/nginx.conf
@@ -159,12 +181,7 @@ sed -i "s|.*# gzip_comp_level 6.*|        gzip_comp_level 6;|" /etc/nginx/nginx.
 sed -i "s|.*# gzip_buffers 16 8k.*|         gzip_buffers 16 8k;|" /etc/nginx/nginx.conf
 sed -i "s|.*# gzip_http_version 1.1.*|        gzip_http_version 1.1;|" /etc/nginx/nginx.conf
 sed -i "s|.*# gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript.*|        gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;|" /etc/nginx/nginx.conf
-IP=$(ifconfig | grep 'inet addr:' | grep -v inet6 | grep -vE '127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut -d: -f2 | awk '{ print $1}' | head -1)
-sed -i "s|server_name|server_name "$IP";|" /etc/nginx/sites-available/default
 service php5-fpm start
-service nginx restart
-wait
-mkdir /usr/share/nginx/html
 wait
 touch /usr/share/nginx/html/info.php
 /bin/cat <<"EOM" >/usr/share/nginx/html/info.php
@@ -172,8 +189,13 @@ touch /usr/share/nginx/html/info.php
 phpinfo();
 ?>
 EOM
-sed -i '/packages.dotdeb.org/d' /etc/apt/sources.list
-echo "nginx and php 5 installed"
+elif [ "$a" = "n" ] ; then
+exit 1
+else
+echo "Invalid choice"
+exit 1
+fi
+service nginx restart
 break
 ;;
 3)
