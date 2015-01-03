@@ -1,6 +1,7 @@
 ##Essentials
 
 Interactive essentials install script for VPS or Dedicated servers.
+Build with low end systems in mind.
 Requires Debian version 7.0 or above
 
 ###Installation
@@ -10,18 +11,26 @@ Run the script and follow the assistant:
 `chmod +x setup.sh && ./setup.sh`
 
 ###Script content
-* Apache2 & PHP 5.6
-* Nginx & PHP-FPM 5.6
-* MySql & phpMyadmin
-* MariaDB & phpMyadmin
-* PureFTPd
+
+* nginx 1.6.2
+* PHP-FPM 5.6
+* MySQL Server
+* MariaDB server
+* phpMyAdmin
+* PureFTPD (FTPS enabled)
 * Java 7 JDK
 * MCMyAdmin x64
 * pptp server
-* OpenVPN Server (includes option for NATed VPS)
+* OpenVPN Server (Works on NAT IPV4 only VPS)
 * Squid3 Proxy Server
-* Google Authenticator
-* ssmtp
+* sSMTP server
+* User Management
+* Server Essentials
+* Get OS Version
+* About"
 
 ###Disclaimer
-Parts of the files are scripts found on various sites on the internet, and modified or included.
+Parts of the files are scripts found on various sites on the internet, and either modified or included.
+
+###Credits
+Xeoncross, mikel, Falko Timme, road warrior and many others.
