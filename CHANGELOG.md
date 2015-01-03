@@ -1,0 +1,32 @@
+## 1.2 (2015-01-03)
+
+###Features:
+
+  - New functions and clean up.
+  - Seperated PHP-FPM and nginx
+  - Tweaked nginx for lowend use.
+  - Removed Apache2
+  - Added FTPS to Pure-ftpd
+  - Added port selection during pure-ftpd install
+  - Added port selection during squid3 install
+  - Minor changes to php.ini
+  - Added php5-sqlite
+  - Tweaked my.cnf for lowend use
+  - Better OS info
+  - Better info messages
+  - Added Essentials script (See below)
+  - Moved lftp to essentials
+
+###Essentials:
+
+Essentials will remove un-needed services and install some essentials.
+Removes: apache2, bind9, samba, nscd, sendmail, portmap
+Disables: xinetd, saslauthd
+Installs: nano, rcconf, lftp, unzip
+Added Disk I/O test and Network speed test.
+
+###Todo
+* Add easy vhost creation to nginx
+* lighttpd and php installation
+* More & better user management
+
