@@ -1,118 +1,69 @@
 #!/bin/bash
-# Interactive essentials install script for VPS or Dedicated servers.
-# https://github.com/eunas/essentials
-if [ "$(id -u)" != "0" ]; then
-  echo "This script must be run as root" 1>&2
-  exit 1
-fi
-### Check if system is debian and version is meet
-if [ ! -e /etc/debian_version ]; then
-echo "Looks like you aren't running this installer on a Debian-based system"
-exit
-fi
-required="7.0"
-version=$(cat /etc/debian_version)
-required=$(echo $required|sed 's/\.//g')
-version=$(echo $version|sed 's/\.//g')
-if [ $version -lt $required ]; then
-echo "You need to run atleast Debian 7"
-exit 1
-fi
+############################################################
+# Core
+############################################################
+function check_sanity {
+	# Do some sanity checking.
+	if [ $(/usr/bin/id -u) != "0" ]
+	then
+		die 'Must be run by root user'
+	fi
 
-while true; do
-echo "Choose what you want to install:"
-echo "1) Apache2 and PHP5"
-echo "2) nginx and PHP5"
-echo "3) MySQL Server and phpMyAdmin"
-echo "4) MariaDB and phpMyAdmin"
-echo "5) rcconf"
-echo "6) PureFTPD"
-echo "7) Java 7 JDK"
-echo "8) lftp"
-echo "9) MCMyAdmin x64"
-echo "10) pptp server"
-echo "11) OpenVPN Server"
-echo "12) Squid3 Proxy Server"
-echo "13) Google Authenticator"
-echo "14) sSMTP server"
-echo "15) Add user"
-echo "16 Delete user"
-echo "17) User www dir"
-echo "18) List users"
-echo "19) Get OS Version"
-echo "20) About"
-echo "e) Exit"
-read choice
-case $choice in
-1)
-echo "Installing Apache2 and PHP5"
-echo "Enter your admin email"
-read e
+	if [ ! -f /etc/debian_version ]
+	then
+		die "Distribution is not supported"
+	fi
+}
+function check_install {
+        if [ $(dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -c "ok installed") -eq $2 ]
+        then
+    if [ -n "$3" ]; then
+        print_warn "$3"
+    fi
+    if [ -n "$4" ]; then
+        version=$(dpkg -s $1 | grep 'Version')
+        print_info "$version"
+    fi
+        exit 1
+        fi
+}
+
+function print_info {
+	echo -n -e '\e[1;33m'
+	echo -n $1
+	echo -e '\e[0m'
+}
+function print_warn {
+	echo -n -e '\e[1;31m'
+	echo -n $1
+	echo -e '\e[0m'
+}
+function print_done {
+	echo -n -e '\e[1;32m'
+	echo -n $1
+	echo -e '\e[0m'
+}
+function die {
+	echo "ERROR: $1" > /dev/null 1>&2
+	exit 1
+}
+function get_version {
+version=$(dpkg -s $1 | grep 'Version')
+print_info "$version"
+}
+function update_upgrade {
+	# Run through the apt-get update/upgrade first.
+	# This should be done before we try to install any package
+	apt-get -q -y update
+	apt-get -q -y upgrade
+
+	# also remove the orphaned stuff
+	apt-get -q -y autoremove
+}
+function dotdeb_repo {
 if ! grep -q dotdeb "/etc/apt/sources.list"; then
 sed -i '$a\deb http://packages.dotdeb.org wheezy-php56 all' /etc/apt/sources.list
 sed -i '$a\deb-src http://packages.dotdeb.org wheezy-php56 all' /etc/apt/sources.list
-wget http://www.dotdeb.org/dotdeb.gpg
-wait
-sudo apt-key add dotdeb.gpg
-wait
-fi
-apt-get update -y
-wait
-apt-get -y install apache2
-wait
-apt-get -y install php5 libapache2-mod-php5 php5-mcrypt
-wait
-apt-get  -y install php5-mysql php5-curl php5-gd php5-idn php-pear php5-imagick php5-imap php5-memcache php5-pspell php5-recode php5-snmp php5-sqlite php5-tidy php5-xmlrpc php5-xsl
-wait
-a2enmod rewrite
-wait
-sed -i '11 s/AllowOverride None/AllowOverride All/' /etc/apache2/sites-enabled/000-default
-sed -i 's/webmaster@localhost/'$e'/' /etc/apache2/sites-enabled/000-default
-sed -i 's/webmaster@localhost/'$e'/' /etc/apache2/sites-available/default
-sed -i 's/webmaster@localhost/'$e'/' /etc/apache2/sites-available/default-ssl
-wait
-if grep -q dotdeb "/etc/apt/sources.list"; then
-sed -i '/packages.dotdeb.org/d' /etc/apt/sources.list
-wait
-apt-get update
-wait
-a2enmod php5
-fi
-wait
-/etc/init.d/apache2 restart
-wait
-echo "Apache2 and PHP5 installed. html root is /var/www"
-touch /var/www/info.php
-echo $'<?php\nphpinfo();\n?>' > /var/www/info.php
-echo "Apache2 has been installed with PHP5 and mod_rewrite enabled ready to use"
-echo "PHP5 modules compiled with apache2: php5-mysql php5-curl php5-gd php5-idn php-pear php5-imagick"
-echo "php5-imap php5-mcrypt php5-memcache php5-pspell php5-recode php5-snmp"
-echo "php5-sqlite php5-tidy php5-xmlrpc php5-xsl"
-break
-;;
-2)
-if [ $(dpkg-query -W -f='${Status}' nginx 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
-echo "nginx is already installed"
-exit
-fi
-if [ $(dpkg-query -W -f='${Status}' apache2 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
-echo "Apache2 is already installed."
-echo "1) Uninstall it"
-echo "2) Stop and remove the service"
-read p
-if [ $p -eq 1 ]; then
-apt-get remove apache2 -y
-wait
-elif [ $p -eq 2 ]; then
-service apache2 stop
-update-rc.d -f apache2 remove
-else
-echo "Invalid choice"
-exit 1
-fi
-fi
-
-if ! grep -q dotdeb "/etc/apt/sources.list"; then
 sed -i '$a\deb http://packages.dotdeb.org wheezy all' /etc/apt/sources.list
 sed -i '$a\deb-src http://packages.dotdeb.org wheezy all' /etc/apt/sources.list
 wget http://www.dotdeb.org/dotdeb.gpg
@@ -122,9 +73,41 @@ rm dotdeb.gpg
 apt-get update
 wait
 fi
-apt-get install -y nginx
+}
+function mariadb_repo {
+if ! grep -q mariadb "/etc/apt/sources.list"; then
+sed -i '$a\deb http://nyc2.mirrors.digitalocean.com/mariadb/repo/10.0/debian wheezy main' /etc/apt/sources.list
+sed -i '$a\deb-src http://nyc2.mirrors.digitalocean.com/mariadb/repo/10.0/debian wheezy main' /etc/apt/sources.list
+apt-key adv --recv-keys --keyserver keyserver.ubuntu.com 0xcbcb082a1bb943db
 wait
-/bin/cat <<"EOM" >/etc/nginx/sites-available/default
+add-apt-repository 'deb http://nyc2.mirrors.digitalocean.com/mariadb/repo/10.0/debian wheezy main'
+wait
+apt-get update
+wait
+fi
+}
+function mysql_opt {
+mysql_secure_installation
+if [ $(dpkg-query -W -f='${Status}' "mariadb-server" 2>/dev/null | grep -c "ok installed") -eq 1 ]
+	then
+sed -i "s|.*default_storage_engine.*|default_storage_engine  = MyISAM|" /etc/mysql/my.cnf
+sed -i "s|.*key_buffer_size.*|key_buffer_size         = 12M|" /etc/mysql/my.cnf
+sed -i '/skip-external-locking/ a\skip-innodb' /etc/mysql/my.cnf
+    else
+sed -i '/skip-external-locking/ a\innodb=OFF' /etc/mysql/my.cnf
+sed -i '/innodb=OFF/ a\default-storage-engine=MyISAM' /etc/mysql/my.cnf
+sed -i '/default-storage-engine=MyISAM/ a\default-tmp-storage-engine=MyISAM' /etc/mysql/my.cnf
+fi
+service mysql restart
+}
+############################################################
+# Apps
+############################################################
+function install_nginx {
+    dotdeb_repo
+    check_install nginx 1 "ngninx is already installed" v
+    DEBIAN_FRONTEND=noninteractive apt-get install -y nginx
+    /bin/cat <<"EOM" >/etc/nginx/sites-available/default
  server {
     listen 80 default_server;
     listen [::]:80 default_server ipv6only=on;
@@ -132,7 +115,7 @@ wait
     root /usr/share/nginx/html;
     index index.php index.html index.htm;
 
-    server_name $d
+    server_name _
 
     location / {
         try_files $uri $uri/ =404;
@@ -153,184 +136,114 @@ wait
     }
 }
 EOM
+cpu_count=`grep -c ^processor /proc/cpuinfo`
+sed -i "s|.*worker_processes [0-9].*|worker_processes $cpu_count;|" /etc/nginx/nginx.conf
 IP=$(ifconfig | grep 'inet addr:' | grep -v inet6 | grep -vE '127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut -d: -f2 | awk '{ print $1}' | head -1)
-echo "Enter Domain, leave blank to use IP"
+print_info "Enter Domain, leave blank to use IP"
 read d
 if [ -z "$d" ] ; then
 d="$IP"
 fi
 sed -i "s|.*server_name.*|        server_name "$d";|" /etc/nginx/sites-available/default
 service nginx restart
-####
-echo "Do you want to install PHP ? y/n"
-read a
-if [ $a = y ]; then
-if ! grep -q wheezy-php56 "/etc/apt/sources.list"; then
-sed -i '$a\deb http://packages.dotdeb.org wheezy-php56 all' /etc/apt/sources.list
-sed -i '$a\deb-src http://packages.dotdeb.org wheezy-php56 all' /etc/apt/sources.list
-apt-get update
-wait
-fi
-apt-get install php5-fpm php5-common php5-mysql php5-cli php5-mcrypt php5-curl curl php5-gd -y
-wait
-sed -i "s|.*cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
-sed -i "s|.*reload signal USR2.*|        #reload signal USR2|" /etc/init/php5-fpm.conf
-sed -i "s|.*# gzip_vary on.*|        gzip_vary on;|" /etc/nginx/nginx.conf
-sed -i "s|.*# gzip_proxied any.*|        gzip_proxied any;|" /etc/nginx/nginx.conf
-sed -i "s|.*# gzip_comp_level 6.*|        gzip_comp_level 6;|" /etc/nginx/nginx.conf
-sed -i "s|.*# gzip_buffers 16 8k.*|         gzip_buffers 16 8k;|" /etc/nginx/nginx.conf
-sed -i "s|.*# gzip_http_version 1.1.*|        gzip_http_version 1.1;|" /etc/nginx/nginx.conf
-sed -i "s|.*# gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript.*|        gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;|" /etc/nginx/nginx.conf
-service php5-fpm start
-wait
-touch /usr/share/nginx/html/info.php
+    print_done "ngninx successfully installed."
+}
+function install_php {
+    dotdeb_repo
+    check_install php5-fpm 1 "php5-fpm is already installed" v
+    DEBIAN_FRONTEND=noninteractive apt-get install php5-fpm php5-common php5-mysql php5-sqlite php5-mcrypt php5-curl curl php5-cli php5-gd -y
+    wait
+    sed -i "s|.*cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
+    sed -i "s|.*upload_max_filesize = 2M.*|upload_max_filesize = 128M|" /etc/php5/fpm/php.ini
+    sed -i "s|.*post_max_size = 8M.*|post_max_size = 128M|" /etc/php5/fpm/php.ini
+    sed -i "s|.*reload signal USR2.*|        #reload signal USR2|" /etc/init/php5-fpm.conf
+    sed -i "s|.*# gzip_vary on.*|        gzip_vary on;|" /etc/nginx/nginx.conf
+    sed -i "s|.*# gzip_proxied any.*|        gzip_proxied any;|" /etc/nginx/nginx.conf
+    sed -i "s|.*# gzip_comp_level 6.*|        gzip_comp_level 6;|" /etc/nginx/nginx.conf
+    sed -i "s|.*# gzip_buffers 16 8k.*|         gzip_buffers 16 8k;|" /etc/nginx/nginx.conf
+    sed -i "s|.*# gzip_http_version 1.1.*|        gzip_http_version 1.1;|" /etc/nginx/nginx.conf
+    sed -i "s|.*# gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript.*|        gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;|" /etc/nginx/nginx.conf
+    service php5-fpm start
+    wait
+    touch /usr/share/nginx/html/info.php
 /bin/cat <<"EOM" >/usr/share/nginx/html/info.php
-<?php
-phpinfo();
-?>
+    <?php
+    phpinfo();
+    ?>
 EOM
-elif [ "$a" = "n" ] ; then
-exit 1
-else
-echo "Invalid choice"
-exit 1
-fi
-service nginx restart
-break
-;;
-3)
-if [ $(dpkg-query -W -f='${Status}' apache2 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
-      echo "Please install apache2 or nginx before mysql."
-exit 1
-fi
-if [ $(dpkg-query -W -f='${Status}' nginx 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
-      echo "Please install apache2 or nginx before mysql."
-exit 1
-fi
-if [ $(dpkg-query -W -f='${Status}' mariadb-server 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
-      echo "MariaDB already installed."
-exit 1
-fi
-if [ $(dpkg-query -W -f='${Status}' mysql-server 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
-      echo "No MySQL. Installing....."
+    print_done "PHP-FPM 5.6 successfully installed."
+}
+function install_mysql {
+check_install mysql-server 1 "MySQL is already installed"
+check_install mariadb-server 1 "MariaDB is the current DB server. Can't install MySQL"
 apt-get update
 wait
-apt-get -y install mysql-server mysql-client
+DEBIAN_FRONTEND=noninteractive apt-get  -y install mysql-server mysql-client
 wait
-mysql_secure_installation
+mysql_opt
+print_done "MySQL successfully installed."
+}
+function install_mariadb {
+check_install mysql-server  1 "MySQL is the current DB server. Can't install Mariadb"
+check_install mariadb-server 1 "MariaDB Server is already installed"
+mariadb_repo
+DEBIAN_FRONTEND=noninteractive apt-get -y install python-software-properties mariadb-server mariadb-client
 wait
-if [ $(dpkg-query -W -f='${Status}' nginx 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
+mysql_opt
+print_done "MariaDB successfully installed."
+}
+function install_phpmyadmin {
+check_install phpmyadmin 1 "phpMyAdmin is already installed" v
+check_install nginx 0 "Please install a webserver first"
+check_install php5-fpm 0 "phpMyAdmin requires php, please install it"
+if ((! $(ps -ef | grep -v grep | grep mysql | wc -l) > 0 ))
+then
+        print_warn "The MySQL server is stopped or not installed.";
+        exit 1
+
+fi
 echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect none" | debconf-set-selections
 echo "phpmyadmin phpmyadmin/dbconfig-install boolean true" | debconf-set-selections
 apt-get install phpmyadmin -y
 wait
 ln -s /usr/share/phpmyadmin/ /usr/share/nginx/html
-service nginx restart
-else
-echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect apache2" | debconf-set-selections
-echo "phpmyadmin phpmyadmin/dbconfig-install boolean true" | debconf-set-selections
-apt-get install phpmyadmin -y
-wait
-sed -i '/skip-external-locking/ a\innodb=OFF' /etc/mysql/my.cnf
-sed -i '/innodb=OFF/ a\default-storage-engine=MyISAM' /etc/mysql/my.cnf
-wait
-service mysql stop
-wait
-service mysql start
-wait
-echo "MySQL server and phpMyAdmin installed, default storage engine is MyISAM, InnoDB disabled."
-fi
-fi
-break
-;;
-4)
-if [ $(dpkg-query -W -f='${Status}' mariadb-server 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
-      echo "MariaDB already installed."
-exit 1
-fi
-if [ $(dpkg-query -W -f='${Status}' mysql-server 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
-echo "MySQL will be removed."
-service mysqld stop
-wait
-apt-get remove mysql-server -y
-fi
-if ! grep -q mariadb "/etc/apt/sources.list"; then
-sed -i '$a\deb http://nyc2.mirrors.digitalocean.com/mariadb/repo/10.0/debian wheezy main' /etc/apt/sources.list
-sed -i '$a\deb-src http://nyc2.mirrors.digitalocean.com/mariadb/repo/10.0/debian wheezy main' /etc/apt/sources.list
-fi
-apt-key adv --recv-keys --keyserver keyserver.ubuntu.com 0xcbcb082a1bb943db
-wait
-add-apt-repository 'deb http://nyc2.mirrors.digitalocean.com/mariadb/repo/10.0/debian wheezy main'
-wait
+print_done "phpMyAdmin successfully installed."
+}
+function install_pureftpd {
+check_install pure-ftpd 1 "Pure-ftpd is already installed." v
 apt-get update
 wait
-apt-get install python-software-properties -y
+DEBIAN_FRONTEND=noninteractive apt-get install pure-ftpd -y
 wait
-apt-get install mariadb-server mariadb-client -y
-wait
-mysql_secure_installation
-wait
-if [ $(dpkg-query -W -f='${Status}' nginx 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
-echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect none" | debconf-set-selections
-echo "phpmyadmin phpmyadmin/dbconfig-install boolean true" | debconf-set-selections
-apt-get install phpmyadmin -y
-wait
-ln -s /usr/share/phpmyadmin/ /usr/share/nginx/html
-service nginx restart
-else
-#echo PURGE | debconf-communicate packagename
-echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect apache2" | debconf-set-selections
-echo "phpmyadmin phpmyadmin/dbconfig-install boolean true" | debconf-set-selections
-apt-get install phpmyadmin -y
+print_info "Define port for Pure-ftpd, leave blank for port 21"
+read p
+if [ -z "$p" ] ; then
+p="21"
 fi
-break
-;;
-5)
-if [ $(dpkg-query -W -f='${Status}' rcconf 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
-      echo "No rcconf. Installing....."
-      apt-get update
-      wait
-      apt-get --force-yes --yes install rcconf
-wait
-echo "rcconf installed"
-fi
-break
-;;
-6)
-if [ $(dpkg-query -W -f='${Status}' pure-ftpd 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
-      echo "Pure-FTPd is already installed. use apt-get --purge remove pure-ftpd to uninstall"
-exit 1
-else
-apt-get update
-wait
-apt-get install pure-ftpd -y
-wait
 echo "yes" > /etc/pure-ftpd/conf/Daemonize
 echo "yes" > /etc/pure-ftpd/conf/NoAnonymous
 echo "yes" > /etc/pure-ftpd/conf/ChrootEveryone
+echo "2" > /etc/pure-ftpd/conf/TLS
+echo "$p" > /etc/pure-ftpd/conf/Bind
+openssl req -x509 -nodes -days 7300 -newkey rsa:2048 -keyout /etc/ssl/private/pure-ftpd.pem -out /etc/ssl/private/pure-ftpd.pem -subj "/C=US/ST=defaultstate/L=defaultcity/O=myorg/CN=localhost"
 service pure-ftpd restart
-echo "Pure-FTPd installed, config files updated."
-fi
-break
-;;
-7)
+print_done "Pure-FTPd with FTPS support successfully installed."
+}
+function install_java {
+check_install openjdk-7-jdk 1 "Java 7 JDK is already installed" v
 apt-get -y install openjdk-7-jdk
-break
-;;
-8)
-apt-get -y install lftp
-break
-;;
-9)
-apt-get -y install unzip
-echo "Enter username for the user who should run the minecraft process"
-echo "Enter username"
+print_done "Java 7 successfully installed."
+}
+function install_mcmyadmin {
+check_install openjdk-7-jdk 0 "Please install Java"
+print_info "Enter username for the user who should run the minecraft process"
 read username
 cuser=$(id -u $username)
 if [ "" == "$cuser" ]; then
-      echo "Please create the user first"
+      print_warn "Please create the user first"
 exit 1
 fi
+apt-get -y install unzip
 if [ ! -d "/home/$username/minecraft" ]; then
 mkdir /home/$username/minecraft
 fi
@@ -345,37 +258,34 @@ unzip -o /tmp/etc.zip -d /usr/local
 wait
 rm /tmp/etc.zip
 chown -R $username /home/$username/minecraft
-echo "McMyAdmin installed in /home/$username/minecraft"
-echo "Run ./MCMA2_Linux_x86_64 -setpass YOURPASSWORD -configonly"
-break
-;;
-10)
-if [ $(dpkg-query -W -f='${Status}' pptpd 2>/dev/null | grep -c "ok installed") -eq 1 ]; then
-      echo "pptpd is already installed. use apt-get --purge remove pptpd to uninstall"
-exit 1
-fi
-echo "######################################################"
-echo "Interactive PoPToP Install Script for an OpenVZ VPS"
-echo
-echo "Make sure to contact your provider and have them enable"
-echo "IPtables and ppp modules prior to setting up PoPToP."
-echo "PPP can also be enabled from SolusVM."
-echo
-echo "You need to set up the server before creating more users."
-echo "A separate user is required per connection or machine."
-echo "######################################################"
-echo
-echo
-echo "######################################################"
-echo "Select on option:"
-echo "1) Set up new PoPToP server AND create one user"
-echo "2) Create additional users"
-echo "######################################################"
+print_done "-------------------------------------------------------------"
+print_done "McMyAdmin installed in /home/$username/minecraft"
+print_done "Run ./MCMA2_Linux_x86_64 -setpass YOURPASSWORD -configonly"
+print_done "-------------------------------------------------------------"
+}
+function install_pptp {
+print_info "######################################################"
+print_info "Interactive PoPToP Install Script for an OpenVZ VPS"
+print_info
+print_info "Make sure to contact your provider and have them enable"
+print_info "IPtables and ppp modules prior to setting up PoPToP."
+print_info "PPP can also be enabled from SolusVM."
+print_info
+print_info "You need to set up the server before creating more users."
+print_info "A separate user is required per connection or machine."
+print_info "######################################################"
+print_info
+print_info
+print_info "######################################################"
+print_info "Select on option:"
+print_info "1) Set up new PoPToP server AND create one user"
+print_info "2) Create additional users"
+print_info "######################################################"
 read x
 if test $x -eq 1; then
-	echo "Enter username that you want to create (eg. client1 or john):"
+	print_info "Enter username that you want to create (eg. client1 or john):"
 	read u
-	echo "Specify password that you want the server to use:"
+	print_info "Specify password that you want the server to use:"
 	read p
 
 # get the VPS IP
@@ -388,17 +298,17 @@ elif [ "$b" == "venet0:0" ]; then
   ip="`/sbin/ifconfig venet0:0 | awk -F':| +' '/inet addr/{print $4}'`";
 fi
 
-echo
-echo "######################################################"
-echo "Downloading and Installing PoPToP"
-echo "######################################################"
+print_info
+print_info "######################################################"
+print_info "Downloading and Installing PoPToP"
+print_info "######################################################"
 apt-get update
 apt-get -y install pptpd
 
-echo
-echo "######################################################"
-echo "Creating Server Config"
-echo "######################################################"
+print_info
+print_info "######################################################"
+print_info "Creating Server Config"
+print_info "######################################################"
 cat > /etc/ppp/pptpd-options <<END
 name pptpd
 refuse-pap
@@ -423,19 +333,19 @@ echo "remoteip 10.1.0.1-100" >> /etc/pptpd.conf
 # adding new user
 echo "$u	*	$p	*" >> /etc/ppp/chap-secrets
 
-echo
-echo "######################################################"
-echo "Forwarding IPv4 and Enabling it on boot"
-echo "######################################################"
+print_info
+print_info "######################################################"
+print_info "Forwarding IPv4 and Enabling it on boot"
+print_info "######################################################"
 cat >> /etc/sysctl.conf <<END
 net.ipv4.ip_forward=1
 END
 sysctl -p
 
-echo
-echo "######################################################"
-echo "Updating IPtables Routing and Enabling it on boot"
-echo "######################################################"
+print_info
+print_info "######################################################"
+print_info "Updating IPtables Routing and Enabling it on boot"
+print_info "######################################################"
 iptables -t nat -A POSTROUTING -j SNAT --to $ip
 # saves iptables routing rules and enables them on-boot
 iptables-save > /etc/iptables.conf
@@ -450,25 +360,25 @@ cat >> /etc/ppp/ip-up <<END
 ifconfig ppp0 mtu 1400
 END
 
-echo
-echo "######################################################"
-echo "Restarting PoPToP"
-echo "######################################################"
+print_info
+print_info "######################################################"
+print_info "Restarting PoPToP"
+print_info "######################################################"
 sleep 5
 /etc/init.d/pptpd restart
 
-echo
-echo "######################################################"
-echo "Server setup complete!"
-echo "Connect to your VPS at $ip with these credentials:"
-echo "Username:$u ##### Password: $p"
-echo "######################################################"
+print_done
+print_done "######################################################"
+print_done "Server setup complete!"
+print_done "Connect to your VPS at $ip with these credentials:"
+print_done "Username:$u ##### Password: $p"
+print_done "######################################################"
 
 # runs this if option 2 is selected
 elif test $x -eq 2; then
-	echo "Enter username that you want to create (eg. client1 or john):"
+	print_info "Enter username that you want to create (eg. client1 or john):"
 	read u
-	echo "Specify password that you want the server to use:"
+	print_info "Specify password that you want the server to use:"
 	read p
 
 # get the VPS IP
@@ -485,21 +395,20 @@ fi
 echo "$u	*	$p	*" >> /etc/ppp/chap-secrets
 
 echo
-echo "######################################################"
-echo "Addtional user added!"
-echo "Connect to your VPS at $ip with these credentials:"
-echo "Username:$u ##### Password: $p"
-echo "######################################################"
+print_done "######################################################"
+print_done "Addtional user added!"
+print_done "Connect to your VPS at $ip with these credentials:"
+print_done "Username:$u ##### Password: $p"
+print_done "######################################################"
 
 else
-echo "Invalid selection, quitting."
+print_info "Invalid selection, quitting."
 exit
 fi
-break
-;;
-11)
+}
+function install_openvpn {
 if [[ ! -e /dev/net/tun ]]; then
-	echo "TUN/TAP is not available"
+	print_info "TUN/TAP is not available"
 	exit
 fi
 
@@ -586,28 +495,26 @@ if [[ -e /etc/openvpn/server.conf ]]; then
 		esac
 	done
 else
-	echo 'Welcome to this quick OpenVPN "road warrior" installer'
-	echo ""
 	# OpenVPN setup and first user creation
-	echo "I need to ask you a few questions before starting the setup"
-	echo "You can leave the default options and just press enter if you are ok with them"
-	echo ""
-	echo "First I need to know the IPv4 address of the network interface you want OpenVPN"
-	echo "listening to."
+	print_info "I need to ask you a few questions before starting the setup"
+	print_info "You can leave the default options and just press enter if you are ok with them"
+	print_info ""
+	print_info "First I need to know the IPv4 address of the network interface you want OpenVPN"
+	print_info "listening to."
 	read -p "IP address: " -e -i $IP IP
-	echo ""
-	echo "What port do you want for OpenVPN?"
+	print_info ""
+	print_info "What port do you want for OpenVPN?"
 	read -p "Port: " -e -i 1194 PORT
-	echo ""
-	echo "Do you want OpenVPN to be available at port 53 too?"
-	echo "This can be useful to connect under restrictive networks"
+	print_info ""
+	print_info "Do you want OpenVPN to be available at port 53 too?"
+	print_info "This can be useful to connect under restrictive networks"
 	read -p "Listen at port 53 [y/n]: " -e -i n ALTPORT
-	echo ""
-	echo "Finally, tell me your name for the client cert"
-	echo "Please, use one word only, no special characters"
+	print_info ""
+	print_info "Finally, tell me your name for the client cert"
+	print_info "Please, use one word only, no special characters"
 	read -p "Client name: " -e -i client CLIENT
-	echo ""
-	echo "Okay, that was all I needed. We are ready to setup your OpenVPN server now"
+	print_info ""
+	print_info "Okay, that was all I needed. We are ready to setup your OpenVPN server now"
 	read -n1 -r -p "Press any key to continue..."
 	apt-get update
 	apt-get install openvpn iptables openssl -y
@@ -678,11 +585,11 @@ else
 	# users
 	EXTERNALIP=$(wget -qO- ipv4.icanhazip.com)
 	if [[ "$IP" != "$EXTERNALIP" ]]; then
-		echo ""
-		echo "Looks like your server is behind a NAT!"
-		echo ""
-		echo "If your server is NATed (LowEndSpirit), I need to know the external IP"
-		echo "If that's not the case, just ignore this and leave the next field blank"
+		print_info ""
+		print_info "Looks like your server is behind a NAT!"
+		print_info ""
+		print_info "If your server is NATed (LowEndSpirit, NanoVZ), I need to know the external IP"
+		print_info "If that's not the case, just ignore this and leave the next field blank"
 		read -p "External IP: " -e USEREXTERNALIP
 		if [[ "$USEREXTERNALIP" != "" ]]; then
 			IP=$USEREXTERNALIP
@@ -701,39 +608,33 @@ else
 	tar -czf ../ovpn-$CLIENT.tar.gz $CLIENT.conf ca.crt $CLIENT.crt $CLIENT.key
 	cd ~/
 	rm -rf ovpn-$CLIENT
-	echo ""
-	echo "Finished!"
-	echo ""
-	echo "Your client config is available at ~/ovpn-$CLIENT.tar.gz"
-	echo "If you want to add more clients, you simply need to run this script another time!"
+	print_info ""
+	print_done "Finished!"
+	print_done ""
+	print_done "Your client config is available at ~/ovpn-$CLIENT.tar.gz"
+	print_done "If you want to add more clients, you simply need to run this script another time!"
 fi
-break
-;;
-12)
-if [ $(dpkg-query -W -f='${Status}' squid3 2>/dev/null | grep -c "ok installed") -eq 0 ]; then
-      echo "squid3 is already installed. use apt-get --purge remove squid3 to uninstall"
-exit 1
-fi
-if [ "" == "$problem" ]; then
-      echo "Squid3 not found. Installing....."
-echo " "
-echo "*****************************************************"
-echo "WELCOME TO THE SQUID PROXY SERVER INSTALLATION SCRIPT"
-echo "-----------------------------------------------------"
-echo " "
-echo " This script will set up a password protected, elite"
-echo "             proxy on your target server"
-echo " "
-echo "*****************************************************"
-echo " "
-echo " "
-echo "Please enter a user name for Squid:"
+}
+function install_squid3 {
+check_install squid3 1 "Squid3 is already installed" v
+print_info ""
+print_info "-----------------------------------------------------"
+print_info "WELCOME TO THE SQUID PROXY SERVER INSTALLATION SCRIPT"
+print_info "-----------------------------------------------------"
+print_info ""
+print_info " This script will set up a password protected, elite"
+print_info "             proxy on your target server"
+print_info ""
+print_info "-----------------------------------------------------"
+print_info ""
+print_info "Please enter a user name for Squid:"
 read u
-echo " "
-echo "Please enter a password (will be shown in plain text while typing):"
+print_info ""
+print_info "Please enter a password (will be shown in plain text while typing):"
 read p
-echo " "
-
+print_info ""
+print_info "Please enter the port squid3 will listen on:"
+read sp
 clear
 
 a="`netstat -i | cut -d' ' -f1 | grep eth0`";
@@ -746,8 +647,7 @@ elif [ "$b" == "venet0:0" ]; then
 fi
 
 apt-get update
-apt-get -y install apache2-utils
-apt-get -y install squid3
+DEBIAN_FRONTEND=noninteractive apt-get -y install apache2-utils squid3
 
 rm /etc/squid3/squid.conf
 
@@ -778,7 +678,7 @@ http_access deny manager
 http_access deny !Safe_ports
 http_access deny CONNECT !SSL_ports
 http_access deny all
-http_port 3128
+http_port $sp
 
 hierarchy_stoplist cgi-bin ?
 coredump_dir /var/spool/squid3
@@ -789,7 +689,7 @@ refresh_pattern ^gopher:    1440    0%    1440
 refresh_pattern -i (/cgi-bin/|\?) 0    0%    0
 refresh_pattern .        0    20%    4320
 
-icp_port 3130
+icp_port 0
 
 forwarded_for off
 
@@ -829,75 +729,34 @@ service squid3 restart
 
 clear
 
-echo " "
-echo "***************************************************"
-echo "   Squid proxy server set up has been completed."
-echo " "
-echo "You can access your proxy server at $ip"
-echo "on port 3128 with user name $u"
-echo "Remember to change your name servers to 8.8.8.8 and 8.8.4.4 /etc/resolv.conf"
-echo " "
-echo "***************************************************"
-echo " "
-echo " "
-fi
-break
-;;
-13)
-apt-get install libqrencode3
-wait
-wget http://ftp.us.debian.org/debian/pool/main/g/google-authenticator/libpam-google-authenticator_20130529-2_amd64.deb
-wait
-dpkg -i libpam-google-authenticator_20130529-2_amd64.deb
-wait
-sed -i '$a\auth required pam_google_authenticator.so' /etc/pam.d/sshd
-sed -i 's/ChallengeResponseAuthentication no/ChallengeResponseAuthentication yes/' /etc/ssh/sshd_config
-/etc/init.d/ssh restart
-echo " "
-echo "***************************************************"
-echo "   Google Authenticator."
-echo " "
-echo "Run google-authenticator"
-echo "And remember to save the key before you logout."
-echo "Else you will not be able to login again"
-echo " "
-echo "***************************************************"
-echo " "
-echo " "
-break
-;;
-14)
-if [ $(dpkg-query -W -f='${Status}' ssmtp 2>/dev/null | grep -c "ok installed") -eq 0 ];
-then
-apt-get update
-wait
-apt-get install ssmtp -y
-wait
-echo "Configure ssmtp now y/n ?"
-read con
-else
-echo "ssmtp is already installed. Configure it now y/n ?"
-read con
-fi
-if [ "$con" != "y" ]; then
-echo "Exiting"
-exit
-fi
+print_info ""
+print_info "----------------------------------------------------"
+print_info "Squid proxy server set up has been completed."
+print_info ""
+print_info "You can access your proxy server at $ip"
+print_info "on port $sp with user name $u"
+print_info ""
+print_info "----------------------------------------------------"
+print_info ""
+}
+
+function configure_ssmtp {
+function install_ssmtp {
 while true; do
-echo "Choose mail carrier:"
-echo "1) Mandrill"
-echo "2) Gmail"
-echo "e) Exit"
+print_info "Choose mail carrier:"
+print_info "1) Mandrill"
+print_info "2) Gmail"
+print_info "e) Exit"
 read choice
 case $choice in
 1)
-echo "specify email address"
+print_info "specify email address"
 read mmail
-echo "Server hostname"
+print_info "Server hostname"
 read mhost
-echo "Your mandril login mail"
+print_info "Your mandril login mail"
 read mlogin
-echo "mandril api key"
+print_info "mandril api key"
 read mapikey
 /bin/cat <<EOM >/etc/ssmtp/ssmtp.conf
 # ---- basic config
@@ -914,16 +773,18 @@ EOM
 /bin/cat <<EOM >/etc/ssmtp/revaliases
 root:$mmail:smtp.mandrillapp.com:587
 EOM
+sed -i "s|.*sendmail_path.*|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/fpm/php.ini
+print_done "ssmtp successfully configured."
 break
 ;;
 2)
-echo "specify email address"
+print_info "specify email address"
 read gmail
-echo "Servers hostname"
+print_info "Servers hostname"
 read ghost
-echo "Gmail address"
+print_info "Gmail address"
 read glogin
-echo "Gmail password"
+print_info "Gmail password"
 read gapikey
 /bin/cat <<EOM >/etc/ssmtp/ssmtp.conf
 # ---- basic config
@@ -941,25 +802,83 @@ EOM
 /bin/cat <<EOM >/etc/ssmtp/revaliases
 root:$gmail:smtp.gmail.com:587
 EOM
-if [ -f /etc/php5/apache2/php.ini ]; then
-sed -i "s|.*sendmail_path.*|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/apache2/php.ini
-fi
-if [ -f /etc/php5/fpm/php.ini ]; then
 sed -i "s|.*sendmail_path.*|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/fpm/php.ini
-fi
+print_done"ssmtp successfully configured."
 break
 ;;
 e)
 break
 ;;
      *)
-     echo "That is not a valid choice, try a number from 1 to 2."
+     print_warn "That is not a valid choice, try a number from 1 to 2."
      ;;
 esac
 done
+}
+while true; do
+print_info "1) Install ssmpt"
+print_info "2) Configure ssmtp"
+print_info "e) Exit"
+read choice
+case $choice in
+1)
+    check_install ssmtp 1 "ssmtp already installed" v
+    DEBIAN_FRONTEND=noninteractive apt-get install -y ssmtp
+    print_done "ssmtp successfully installed."
 break
 ;;
-15)
+2)
+install_ssmtp
+break
+;;
+e)
+break
+;;
+     *)
+     print_warn "That is not a valid choice, try a number from 1 to 20."
+     ;;
+esac
+done
+}
+function show_os_arch_version {
+	ARCH=$(uname -m | sed 's/x86_//;s/i[3-6]86/32/')
+
+	if [ -f /etc/lsb-release ]; then
+		. /etc/lsb-release
+		OS=$DISTRIB_ID
+		VERSION=$DISTRIB_RELEASE
+	elif [ -f /etc/debian_version ]; then
+		# Work on Debian and Ubuntu alike
+		OS=$(lsb_release -si)
+		VERSION=$(lsb_release -sr)
+	elif [ -f /etc/redhat-release ]; then
+		# Add code for Red Hat and CentOS here
+		OS=Redhat
+		VERSION=$(uname -r)
+	else
+		# Pretty old OS? fallback to compatibility mode
+		OS=$(uname -s)
+		VERSION=$(uname -r)
+	fi
+
+	OS_SUMMARY=$OS
+	OS_SUMMARY+=" "
+	OS_SUMMARY+=$VERSION
+	OS_SUMMARY+=" "
+	OS_SUMMARY+=$ARCH
+	OS_SUMMARY+="bit"
+
+	print_info "$OS_SUMMARY"
+}
+function user_management {
+while true; do
+print_info "1) Add user"
+print_info "2) Delete user"
+print_info "3) List users"
+print_info "e) Exit"
+read choice
+case $choice in
+1)
 echo "Enter username and password for the user you wish to create."
 echo "Enter username"
 read username
@@ -973,37 +892,195 @@ passwd $username
 echo "User $username added with home dir /home/$username"
 break
 ;;
-16)
+2)
 echo "Enter username"
 read username
 deluser $username
 echo "User: $username deleted. Home directory is still intact"
 break
 ;;
-17)
-echo "Coming soon."
-break
-;;
-18)
+3)
 echo"------system users------"
 cut -d: -f1 /etc/passwd
-break
-;;
-19)
-lsb_release -a
-break
-;;
-20)
-echo "Interactive essentials install script for VPS or Dedicated servers."
-echo "Tested on Debian 7.5 +"
-echo "https://github.com/eunas/essentials"
 break
 ;;
 e)
 break
 ;;
      *)
-     echo "That is not a valid choice, try a number from 1 to 20."
+     echo "That is not a valid choice, try a number from 1 to 3."
+     ;;
+esac
+done
+}
+function install_essentials {
+while true; do
+print_info "1) Remove unneeded packages and services"
+print_info "2) Install essentials packages"
+print_info "3) Update timezone"
+print_info "e) Exit"
+read choice
+case $choice in
+1)
+remove_unneeded
+break
+;;
+2)
+essentials
+break
+;;
+3)
+dpkg-reconfigure tzdata
+break
+;;
+e)
+break
+;;
+     *)
+     print_warn "That is not a valid choice, try a number from 1 to 2."
+     ;;
+esac
+done
+}
+function remove_unneeded {
+	# Some Debian have portmap installed. We don't need that.
+	apt-get --purge remove -y portmap
+
+	# Other packages that are quite common in standard OpenVZ templates.
+	apt-get --purge remove -y apache2*
+	apt-get --purge remove -y bind9*
+	apt-get --purge remove -y samba*
+	apt-get --purge remove -y nscd
+    sysv-rc-conf xinetd off
+    sysv-rc-conf saslauthd off
+
+	# Need to stop sendmail as removing the package does not seem to stop it.
+	if [ -f /usr/lib/sm.bin/smtpd ]
+	then
+		invoke-rc.d sendmail stop
+		apt-get --purge remove -y sendmail*
+	fi
+    print_done "You should restart now"
+}
+function essentials {
+apt-get install -y nano rcconf lftp unzip
+print_done "Essentials services installed"
+}
+function script_about {
+print_info "Interactive essentials install script for VPS or Dedicated servers."
+print_info "Build with low end systems in mind."
+print_info "https://github.com/eunas/essentials"
+print_info ""
+print_info "Credits: Xeoncross, mikel, Falko Timme, road warrior and many more."
+}
+function system_tests {
+	print_info "Classic I/O test"
+	print_info "dd if=/dev/zero of=iotest bs=64k count=16k conv=fdatasync && rm -fr iotest"
+	dd if=/dev/zero of=iotest bs=64k count=16k conv=fdatasync && rm -fr iotest
+
+	print_info "Network test"
+	print_info "wget cachefly.cachefly.net/100mb.test -O 100mb.test && rm -fr 100mb.test"
+	wget cachefly.cachefly.net/100mb.test -O 100mb.test && rm -fr 100mb.test
+}
+############################################################
+# Menu
+############################################################
+check_sanity
+while true; do
+print_info "Choose what you want to install:"
+print_info "1) nginx 1.6.2"
+print_info "2) PHP-FPM 5.6"
+print_info "3) MySQL Server"
+print_info "4) MariaDB server"
+print_info "5) phpMyAdmin"
+print_info "6) PureFTPD"
+print_info "7) Java 7 JDK"
+print_info "8) MCMyAdmin x64"
+print_info "9) pptp server"
+print_info "10) OpenVPN Server"
+print_info "11) Squid3 Proxy Server"
+print_info "12) sSMTP server"
+print_info "13) User Management"
+print_info "14) Server Essentials"
+print_info "15) Get OS Version"
+print_info "16) System tests"
+print_info "17) About"
+print_info "e) Exit"
+read choice
+case $choice in
+1)
+install_nginx
+break
+;;
+2)
+install_php
+break
+;;
+3)
+install_mysql
+break
+;;
+4)
+install_mariadb
+break
+;;
+5)
+install_phpmyadmin
+break
+;;
+6)
+install_pureftpd
+break
+;;
+7)
+install_java
+break
+;;
+8)
+install_mcmyadmin
+break
+;;
+9)
+install_pptp
+break
+;;
+10)
+install_openvpn
+break
+;;
+11)
+install_squid3
+break
+;;
+12)
+configure_ssmtp
+break
+;;
+13)
+user_management
+break
+;;
+14)
+install_essentials
+break
+;;
+15)
+show_os_arch_version
+break
+;;
+16)
+system_tests
+break
+;;
+17)
+script_about
+break
+;;
+e)
+break
+;;
+     *)
+     echo "That is not a valid choice, try a number from 1 to 15."
      ;;
 esac
 done
