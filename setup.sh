@@ -88,16 +88,10 @@ fi
 }
 function mysql_opt {
 mysql_secure_installation
-if [ $(dpkg-query -W -f='${Status}' "mariadb-server" 2>/dev/null | grep -c "ok installed") -eq 1 ]
-	then
-sed -i "s|.*default_storage_engine.*|default_storage_engine  = MyISAM|" /etc/mysql/my.cnf
-sed -i "s|.*key_buffer_size.*|key_buffer_size         = 12M|" /etc/mysql/my.cnf
-sed -i '/skip-external-locking/ a\skip-innodb' /etc/mysql/my.cnf
-    else
 sed -i '/skip-external-locking/ a\innodb=OFF' /etc/mysql/my.cnf
 sed -i '/innodb=OFF/ a\default-storage-engine=MyISAM' /etc/mysql/my.cnf
 sed -i '/default-storage-engine=MyISAM/ a\default-tmp-storage-engine=MyISAM' /etc/mysql/my.cnf
-fi
+sed -i "s|.*default_storage_engine.*|#|" /etc/mysql/my.cnf
 service mysql restart
 }
 ############################################################
@@ -115,7 +109,7 @@ function install_nginx {
     root /usr/share/nginx/html;
     index index.php index.html index.htm;
 
-    server_name _
+    server_name _;
 
     location / {
         try_files $uri $uri/ =404;
