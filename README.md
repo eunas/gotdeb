@@ -13,7 +13,7 @@ Run the script and follow the assistant:
 ###Script content
 
 * nginx 1.6.2
-* PHP-FPM 5.6
+* PHP-FPM 5.6.5
 * MySQL Server
 * MariaDB server
 * phpMyAdmin
@@ -21,9 +21,10 @@ Run the script and follow the assistant:
 * Java 7 JDK
 * MCMyAdmin x64
 * pptp server
-* OpenVPN Server (Works on NAT IPV4 only VPS)
+* OpenVPN Server (Works on NAT IPV4 VPS)
 * Squid3 Proxy Server
 * sSMTP server
+* Aria2 1.18.9 + webui
 * User Management
 * Server Essentials
 * Get OS Version
