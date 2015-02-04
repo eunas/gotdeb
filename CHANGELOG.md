@@ -1,3 +1,13 @@
+## 1.2 (2015-02-04)
+
+### Fixes:
+- Fixed error in my.cnf
+
+### New:
+- Aria2 1.18.9 torrent client + Webui (Secret token security)
+- Linux Dash PHP server monitor.
+- Speedtest.net with image url to results.
+
 ## 1.2 (2015-01-03)
 
 ###Features:
