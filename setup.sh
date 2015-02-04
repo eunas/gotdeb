@@ -976,6 +976,112 @@ function system_tests {
 	print_info "wget cachefly.cachefly.net/100mb.test -O 100mb.test && rm -fr 100mb.test"
 	wget cachefly.cachefly.net/100mb.test -O 100mb.test && rm -fr 100mb.test
 }
+function configure_aria2 {
+if which aria2c >/dev/null; then
+print_warn "Aria2 is already installed."
+exit 1
+fi
+check_install nginx 0 "Please install nginx"
+check_install php5-fpm 0 "Please install PHP"
+IP=$(ifconfig | grep 'inet addr:' | grep -v inet6 | grep -vE '127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut -d: -f2 | awk '{ print $1}' | head -1)
+apt-get install build-essential git autoconf dh-autoreconf libc-ares2 libc6 libgcc1 libgcrypt11 libgnutls26 libsqlite3-0 libstdc++6 libunwind7 libxml2 zlib1g libc-ares2 libcppunit-dev libxml2-dev libgcrypt11-dev pkg-config libgnutls-dev nettle-dev libc-ares-dev libsqlite3-dev libssl-dev sphinx-common -y
+mkdir /tmp/aria2
+git clone https://github.com/tatsuhiro-t/aria2.git /tmp/aria2
+wait
+cd /tmp/aria2
+autoreconf -i
+wait
+./configure
+wait
+make
+wait
+make install
+wait
+make check
+wait
+mkdir /usr/share/aria2
+mkdir /usr/share/Downloads
+mkdir /var/log/aria2/
+touch /var/log/aria2/aria2.log
+touch /usr/share/aria2/aria2.conf
+touch /usr/share/aria2/input.txt
+/bin/cat <<"EOM" >/usr/share/aria2/aria2.conf
+dir=/usr/share/Downloads
+file-allocation=falloc
+continue
+log-level=warn
+check-certificate=false
+max-connection-per-server=8
+summary-interval=120
+daemon=true
+enable-rpc=true
+enable-dht=false
+rpc-listen-port=6800
+rpc-listen-all=true
+max-concurrent-downloads=3
+http-auth-challenge=true
+input-file=/usr/share/aria2/input.txt
+log=/var/log/aria2/aria2.log
+disable-ipv6=false
+disk-cache=25M
+timeout=600
+retry-wait=30
+max-tries=50
+EOM
+print_info "Enter a secret token"
+read secret
+touch /etc/init.d/aria2
+/bin/cat <<"EOM" >/etc/init.d/aria2
+#! /bin/sh
+# /etc/init.d/aria2
+### BEGIN INIT INFO
+# Provides: aria2cRPC
+# Required-Start: $network $local_fs $remote_fs
+# Required-Stop: $network $local_fs $remote_fs
+# Default-Start: 2 3 4 5
+# Default-Stop: 0 1 6
+# Short-Description: aria2c RPC init script.
+# Description: Starts and stops aria2 RPC services.
+### END INIT INFO
+RETVAL=0
+case "$1" in
+start)
+echo -n "Starting aria2c daemon: "
+umask 0000
+aria2c --daemon=true --enable-rpc --rpc-listen-all --rpc-secret=secret -D --conf-path=/usr/share/aria2/aria2.conf
+umask 0000
+aria2c --daemon=true --enable-rpc --rpc-listen-all --rpc-secret=secret -D --conf-path=/usr/share/aria2/aria2.conf
+RETVAL=$?
+echo
+;;
+stop)
+echo -n "Shutting down aria2c daemon: "
+/usr/bin/killall aria2c
+RETVAL=$?
+echo
+;;
+restart)
+stop
+sleep 3
+start
+;;
+*)
+echo $"Usage: $0 {start|stop|restart}"
+RETVAL=1
+esac
+exit $RETVAL
+EOM
+sed -i "s|.*aria2c --daemon=true --enable-rpc --rpc-listen-all --rpc-secret=secret.*|aria2c --daemon=true --enable-rpc --rpc-listen-all --rpc-secret=$secret -D --conf-path=/usr/share/aria2/aria2.conf;|" /etc/init.d/aria2
+chmod +x /etc/init.d/aria2
+update-rc.d aria2 defaults
+git clone https://github.com/ziahamza/webui-aria2.git /usr/share/nginx/html/aria2
+service aria2 start
+wait
+rm -rf /tmp/aria2
+print_done "Aria2 has been installed"
+print_done "Access it at http://$IP/aria2"
+print_done "Your secret token is $secret"
+}
 ############################################################
 # Menu
 ############################################################
@@ -983,7 +1089,7 @@ check_sanity
 while true; do
 print_info "Choose what you want to install:"
 print_info "1) nginx 1.6.2"
-print_info "2) PHP-FPM 5.6"
+print_info "2) PHP-FPM 5.6.5"
 print_info "3) MySQL Server"
 print_info "4) MariaDB server"
 print_info "5) phpMyAdmin"
@@ -994,11 +1100,12 @@ print_info "9) pptp server"
 print_info "10) OpenVPN Server"
 print_info "11) Squid3 Proxy Server"
 print_info "12) sSMTP server"
-print_info "13) User Management"
-print_info "14) Server Essentials"
-print_info "15) Get OS Version"
-print_info "16) System tests"
-print_info "17) About"
+print_info "13) Aria2 + Webui"
+print_info "14) User Management"
+print_info "15) Server Essentials"
+print_info "16) Get OS Version"
+print_info "17) System tests"
+print_info "18) About"
 print_info "e) Exit"
 read choice
 case $choice in
@@ -1051,22 +1158,26 @@ configure_ssmtp
 break
 ;;
 13)
-user_management
+configure_aria2
 break
 ;;
 14)
-install_essentials
+user_management
 break
 ;;
 15)
-show_os_arch_version
+install_essentials
 break
 ;;
 16)
-system_tests
+show_os_arch_version
 break
 ;;
 17)
+system_tests
+break
+;;
+18)
 script_about
 break
 ;;
