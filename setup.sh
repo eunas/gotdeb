@@ -1087,6 +1087,8 @@ print_done "Access it at http://$(get_ip)/aria2"
 print_done "Your secret token is $secret"
 }
 function get_linuxdash {
+check_install nginx 0 "Please install nginx"
+check_install php5-fpm 0 "Please install PHP"
 apt-get install git -y
 mkdir /usr/share/nginx/html/monitor
 git clone https://github.com/afaqurk/linux-dash /usr/share/nginx/html/monitor
