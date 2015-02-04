@@ -47,6 +47,10 @@ function die {
 	echo "ERROR: $1" > /dev/null 1>&2
 	exit 1
 }
+function get_ip {
+IP=$(ifconfig | grep 'inet addr:' | grep -v inet6 | grep -vE '127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut -d: -f2 | awk '{ print $1}' | head -1)
+echo "$IP"
+}
 function get_version {
 version=$(dpkg -s $1 | grep 'Version')
 print_info "$version"
@@ -1079,8 +1083,26 @@ service aria2 start
 wait
 rm -rf /tmp/aria2
 print_done "Aria2 has been installed"
-print_done "Access it at http://$IP/aria2"
+print_done "Access it at http://$(get_ip)/aria2"
 print_done "Your secret token is $secret"
+}
+function get_linuxdash {
+apt-get install git -y
+mkdir /usr/share/nginx/html/monitor
+git clone https://github.com/afaqurk/linux-dash /usr/share/nginx/html/monitor
+print_done "You can view the monitor at http://$(get_ip)/monitor"
+}
+function run_speedtest {
+file="/home/speedtest-cli"
+if [ ! -f "$file" ]
+then
+print_info "Fetching script"
+apt-get install python -y
+wget -O /home/speedtest-cli https://raw.github.com/sivel/speedtest-cli/master/speedtest_cli.py
+python /home/speedtest-cli --share
+else
+python /home/speedtest-cli  --share
+fi
 }
 ############################################################
 # Menu
@@ -1101,11 +1123,13 @@ print_info "10) OpenVPN Server"
 print_info "11) Squid3 Proxy Server"
 print_info "12) sSMTP server"
 print_info "13) Aria2 + Webui"
-print_info "14) User Management"
-print_info "15) Server Essentials"
-print_info "16) Get OS Version"
-print_info "17) System tests"
-print_info "18) About"
+print_info "14) Linux-Dash"
+print_info "15) Speedtest.net With img URL"
+print_info "16) User Management"
+print_info "17) Server Essentials"
+print_info "18) Get OS Version"
+print_info "19) System tests"
+print_info "20) About"
 print_info "e) Exit"
 read choice
 case $choice in
@@ -1162,22 +1186,30 @@ configure_aria2
 break
 ;;
 14)
-user_management
+get_linuxdash
 break
 ;;
 15)
-install_essentials
+run_speedtest
 break
 ;;
 16)
-show_os_arch_version
+user_management
 break
 ;;
 17)
-system_tests
+install_essentials
 break
 ;;
 18)
+show_os_arch_version
+break
+;;
+19)
+system_tests
+break
+;;
+20)
 script_about
 break
 ;;
