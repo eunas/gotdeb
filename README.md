@@ -21,7 +21,8 @@ Run the script and follow the assistant:
 * Java 7 JDK
 * MCMyAdmin x64
 * pptp server
-* OpenVPN Server (Works on NAT IPV4 VPS)
+* OpenVPN Server (Works on NAT)
+* SoftEtherVPS (Works on NAT)
 * Squid3 Proxy Server
 * sSMTP server
 * Aria2 1.18.9 + webui
@@ -32,8 +33,10 @@ Run the script and follow the assistant:
 * Get OS Version
 * About"
 
+
 ###Disclaimer
 Parts of the files are scripts found on various sites on the internet, and either modified or included.
+Tested on a [LowEndSpirit](http://lowendspirit.com/) VPS with 128 MB Ram
 
 ###Credits
 Xeoncross, mikel, Falko Timme, road warrior and many others.
