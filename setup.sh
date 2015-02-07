@@ -1100,11 +1100,150 @@ if [ ! -f "$file" ]
 then
 print_info "Fetching script"
 apt-get install python -y
-wget -O /home/speedtest-cli https://raw.github.com/sivel/speedtest-cli/master/speedtest_cli.py
+wget -O /home/speedtest-cli https://raw.github.com/sivel/speedtest-cli/master/speedtest_cli.py --no-check-certificate
 python /home/speedtest-cli --share
 else
 python /home/speedtest-cli  --share
 fi
+}
+function install_softether {
+apt-get update
+apt-get install build-essential dnsmasq -y
+mkdir /tmp/softether
+MACHINE_TYPE=`uname -m`
+if [ ${MACHINE_TYPE} == 'x86_64' ]; then
+wget -O /tmp/softether/softether-vpnserver_x64.tar.gz http://www.softether-download.com/files/softether/v4.14-9529-beta-2015.02.02-tree/Linux/SoftEther_VPN_Server/64bit_-_Intel_x64_or_AMD64/softether-vpnserver-v4.14-9529-beta-2015.02.02-linux-x64-64bit.tar.gz
+wait
+cd /tmp/softether
+tar zxf softether-vpnserver_x64.tar.gz
+wait
+else
+wget -O /tmp/softether/softether-vpnserver_x86.tar.gz  http://www.softether-download.com/files/softether/v4.14-9529-beta-2015.02.02-tree/Linux/SoftEther_VPN_Server/32bit_-_Intel_x86/softether-vpnserver-v4.14-9529-beta-2015.02.02-linux-x86-32bit.tar.gz
+wait
+cd /tmp/softether
+tar zxf softether-vpnserver_x86.tar.gz
+wait
+fi
+cd vpnserver
+echo "1
+1
+1
+1
+" | make
+cd ..
+mv vpnserver /opt
+cd /opt/vpnserver/
+chmod 600 *
+chmod 700 vpncmd
+chmod 700 vpnserver
+touch /etc/init.d/vpnserver
+/bin/cat <<"EOM" >/etc/init.d/vpnserver
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          vpnserver
+# Required-Start:    $remote_fs $syslog
+# Required-Stop:     $remote_fs $syslog
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: Start daemon at boot time
+# Description:       Enable Softether by daemon.
+### END INIT INFO
+DAEMON=/opt/vpnserver/vpnserver
+LOCK=/var/lock/subsys/vpnserver
+TAP_ADDR=192.168.7.1
+
+test -x $DAEMON || exit 0
+case "$1" in
+start)
+$DAEMON start
+touch $LOCK
+sleep 1
+/sbin/ifconfig tap_soft $TAP_ADDR
+;;
+stop)
+$DAEMON stop
+rm $LOCK
+;;
+restart)
+$DAEMON stop
+sleep 3
+$DAEMON start
+sleep 1
+/sbin/ifconfig tap_soft $TAP_ADDR
+;;
+*)
+echo "Usage: $0 {start|stop|restart}"
+exit 1
+esac
+exit 0
+EOM
+chmod 755 /etc/init.d/vpnserver
+mkdir /var/lock/subsys
+update-rc.d vpnserver defaults
+/etc/init.d/vpnserver start
+mkdir /tmp/.vpntemp
+touch /tmp/.vpntemp/vpnsetup.in
+/bin/cat <<"EOM" >/tmp/.vpntemp/vpnsetup.in
+ServerPasswordSet ADMINPASSWORD
+HubCreate VPN /PASSWORD:
+hubdelete default
+Hub VPN
+UserCreate USERNAME /GROUP:none /REALNAME:none /NOTE:none
+UserPasswordSet USERNAME /PASSWORD:TESTPASS
+BridgeCreate VPN /DEVICE:soft /TAP:yes
+ipsecenable /L2TP:yes /L2TPRAW:yes /ETHERIP:yes /PSK:TESTSECRET /DEFAULTHUB:VPN
+listenercreate PORT
+listenercreate 1701
+listenercreate 1723
+listenercreate 4500
+listenercreate 500
+flush
+exit
+EOM
+CONFIG=/tmp/.vpntemp/vpnsetup.in
+echo "Please enter your softether admin password: "
+read softadmin
+echo "Please enter your IPSEC Secret: "
+read secret
+echo "Please enter your l2tp username: "
+read username
+echo "Please enter your l2tp password: "
+read pass
+echo "Enter a custom port: "
+read port
+sed -i "s/ADMINPASSWORD/$softadmin/g" $CONFIG
+sed -i "s/USERNAME/$username/g" $CONFIG
+sed -i "s/TESTPASS/$pass/g" $CONFIG
+sed -i "s/TESTSECRET/$secret/g" $CONFIG
+sed -i "s/PORT/$port/g" $CONFIG
+/opt/vpnserver/vpncmd localhost:443 /SERVER /IN:$CONFIG
+rm -r /tmp/.vpntemp/vpnsetup.in
+echo "interface=tap_soft" >> /etc/dnsmasq.conf
+echo "dhcp-range=tap_soft,192.168.7.50,192.168.7.60,12h" >> /etc/dnsmasq.conf
+echo "dhcp-option=tap_soft,3,192.168.7.1" >> /etc/dnsmasq.conf
+touch /etc/sysctl.d/ipv4_forwarding.conf
+echo "net.ipv4.ip_forward = 1" > /etc/sysctl.d/ipv4_forwarding.conf
+sysctl --system
+iptables -t nat -A POSTROUTING -s 192.168.7.0/24 -j SNAT --to-source $(get_ip)
+iptables -A INPUT -p tcp --dport 443 -j ACCEPT
+iptables -A INPUT -p tcp --dport 992 -j ACCEPT
+iptables -A INPUT -p tcp --dport 1194 -j ACCEPT
+iptables -A INPUT -p udp --dport 1194 -j ACCEPT
+iptables -A INPUT -p tcp --dport 5555 -j ACCEPT
+iptables -A INPUT -p udp --dport 500 -j ACCEPT
+iptables -A INPUT -p udp --dport 4500 -j ACCEPT
+iptables -A INPUT -p tcp --dport 1701 -j ACCEPT
+iptables -A INPUT -p udp --dport 1701 -j ACCEPT
+iptables -A INPUT -p tcp --dport 1723 -j ACCEPT
+iptables -A INPUT -p udp --dport 1723 -j ACCEPT
+iptables -A INPUT -p udp --dport $port -j ACCEPT
+iptables -A INPUT -p tcp --dport $port -j ACCEPT
+echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
+echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
+apt-get install iptables-persistent -y
+/etc/init.d/vpnserver restart
+/etc/init.d/dnsmasq restart
+rm -rf /tmp/softether
 }
 ############################################################
 # Menu
@@ -1122,16 +1261,17 @@ print_info "7) Java 7 JDK"
 print_info "8) MCMyAdmin x64"
 print_info "9) pptp server"
 print_info "10) OpenVPN Server"
-print_info "11) Squid3 Proxy Server"
-print_info "12) sSMTP server"
-print_info "13) Aria2 + Webui"
-print_info "14) Linux-Dash"
-print_info "15) Speedtest.net"
-print_info "16) User Management"
-print_info "17) Server Essentials"
-print_info "18) Get OS Version"
-print_info "19) System tests"
-print_info "20) About"
+print_info "11) SoftEther VPN"
+print_info "12) Squid3 Proxy Server"
+print_info "13) sSMTP server"
+print_info "14) Aria2 + Webui"
+print_info "15) Linux-Dash"
+print_info "16) Speedtest.net"
+print_info "17) User Management"
+print_info "18) Server Essentials"
+print_info "19) Get OS Version"
+print_info "20) System tests"
+print_info "21) About"
 print_info "e) Exit"
 read choice
 case $choice in
@@ -1176,42 +1316,46 @@ install_openvpn
 break
 ;;
 11)
-install_squid3
+install_softether
 break
 ;;
 12)
-configure_ssmtp
+install_squid3
 break
 ;;
 13)
-configure_aria2
+configure_ssmtp
 break
 ;;
 14)
-get_linuxdash
+configure_aria2
 break
 ;;
 15)
-run_speedtest
+get_linuxdash
 break
 ;;
 16)
-user_management
+run_speedtest
 break
 ;;
 17)
-install_essentials
+user_management
 break
 ;;
 18)
-show_os_arch_version
+install_essentials
 break
 ;;
 19)
-system_tests
+show_os_arch_version
 break
 ;;
 20)
+system_tests
+break
+;;
+21)
 script_about
 break
 ;;
