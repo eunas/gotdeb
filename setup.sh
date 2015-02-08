@@ -1245,6 +1245,27 @@ apt-get install iptables-persistent -y
 /etc/init.d/dnsmasq restart
 rm -rf /tmp/softether
 }
+function install_remotedesktop {
+apt-get update && apt-get upgrade -y
+apt-key adv --recv-keys --keyserver keys.gnupg.net E1F958385BFE2B6E
+file="/etc/apt/sources.list.d/x2go.list"
+if [ ! -f "$file" ]
+then
+touch /etc/apt/sources.list.d/x2go.list
+echo "deb http://packages.x2go.org/debian wheezy main" >> /etc/apt/sources.list.d/x2go.list
+echo "deb-src http://packages.x2go.org/debian wheezy main" >> /etc/apt/sources.list.d/x2go.list
+fi
+apt-get update
+apt-get install x2go-keyring -y
+apt-get install xfce4 iceweasel -y
+
+apt-get install x2goserver* -y
+service x2goserver start
+print_done "Installation completed"
+print_done "Remember to create a new user"
+print_done "X2Go client can be downloaded from"
+print_done "http://wiki.x2go.org/doku.php/download:start"
+}
 ############################################################
 # Menu
 ############################################################
@@ -1265,13 +1286,14 @@ print_info "11) SoftEther VPN"
 print_info "12) Squid3 Proxy Server"
 print_info "13) sSMTP server"
 print_info "14) Aria2 + Webui"
-print_info "15) Linux-Dash"
-print_info "16) Speedtest.net"
-print_info "17) User Management"
-print_info "18) Server Essentials"
-print_info "19) Get OS Version"
-print_info "20) System tests"
-print_info "21) About"
+print_info "15) X2Go + Xfce Desktop"
+print_info "16) Linux-Dash"
+print_info "17) Speedtest.net"
+print_info "18) User Management"
+print_info "19) Server Essentials"
+print_info "20) Get OS Version"
+print_info "21) System tests"
+print_info "22) About"
 print_info "e) Exit"
 read choice
 case $choice in
@@ -1332,30 +1354,34 @@ configure_aria2
 break
 ;;
 15)
-get_linuxdash
+install_remotedesktop
 break
 ;;
 16)
-run_speedtest
+get_linuxdash
 break
 ;;
 17)
-user_management
+run_speedtest
 break
 ;;
 18)
-install_essentials
+user_management
 break
 ;;
 19)
-show_os_arch_version
+install_essentials
 break
 ;;
 20)
-system_tests
+show_os_arch_version
 break
 ;;
 21)
+system_tests
+break
+;;
+22)
 script_about
 break
 ;;
