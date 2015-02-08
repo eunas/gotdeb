@@ -26,6 +26,7 @@ Run the script and follow the assistant:
 * Squid3 Proxy Server
 * sSMTP server
 * Aria2 1.18.9 + webui
+* X2Go + xfce Desktop
 * Linux Dash server monitor
 * Speedtest.net with image URL
 * User Management
