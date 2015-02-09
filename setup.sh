@@ -1,4 +1,5 @@
 #!/bin/bash
+#############github.com/eunas/essentials####################
 ############################################################
 # Core
 ############################################################
@@ -65,30 +66,34 @@ function update_upgrade {
 	apt-get -q -y autoremove
 }
 function dotdeb_repo {
-if ! grep -q dotdeb "/etc/apt/sources.list"; then
-sed -i '$a\deb http://packages.dotdeb.org wheezy-php56 all' /etc/apt/sources.list
-sed -i '$a\deb-src http://packages.dotdeb.org wheezy-php56 all' /etc/apt/sources.list
-sed -i '$a\deb http://packages.dotdeb.org wheezy all' /etc/apt/sources.list
-sed -i '$a\deb-src http://packages.dotdeb.org wheezy all' /etc/apt/sources.list
+file="/etc/apt/sources.list.d/dotdeb.list"
+if [ ! -f "$file" ]
+then
+touch /etc/apt/sources.list.d/dotdeb.list
+echo "deb http://packages.dotdeb.org wheezy-php56 all" >> /etc/apt/sources.list.d/dotdeb.list
+echo "deb-src http://packages.dotdeb.org wheezy-php56 all" >> /etc/apt/sources.list.d/dotdeb.list
+echo "deb http://packages.dotdeb.org wheezy all" >> /etc/apt/sources.list.d/dotdeb.list
+echo "deb-src http://packages.dotdeb.org wheezy all" >> /etc/apt/sources.list.d/dotdeb.list
 wget http://www.dotdeb.org/dotdeb.gpg
 apt-key add dotdeb.gpg
 wait
 rm dotdeb.gpg
+fi
 apt-get update
 wait
-fi
 }
 function mariadb_repo {
-if ! grep -q mariadb "/etc/apt/sources.list"; then
-sed -i '$a\deb http://nyc2.mirrors.digitalocean.com/mariadb/repo/10.0/debian wheezy main' /etc/apt/sources.list
-sed -i '$a\deb-src http://nyc2.mirrors.digitalocean.com/mariadb/repo/10.0/debian wheezy main' /etc/apt/sources.list
+file="/etc/apt/sources.list.d/mariadb.list"
+if [ ! -f "$file" ]
+then
+touch /etc/apt/sources.list.d/mariadb.list
+echo "deb http://nyc2.mirrors.digitalocean.com/mariadb/repo/10.0/debian wheezy main" >> /etc/apt/sources.list.d/mariadb.list
+echo "deb-src http://nyc2.mirrors.digitalocean.com/mariadb/repo/10.0/debian wheezy main" >> /etc/apt/sources.list.d/mariadb.list
 apt-key adv --recv-keys --keyserver keyserver.ubuntu.com 0xcbcb082a1bb943db
 wait
-add-apt-repository 'deb http://nyc2.mirrors.digitalocean.com/mariadb/repo/10.0/debian wheezy main'
-wait
+fi
 apt-get update
 wait
-fi
 }
 function mysql_opt {
 mysql_secure_installation
@@ -102,8 +107,8 @@ service mysql restart
 # Apps
 ############################################################
 function install_nginx {
-    dotdeb_repo
     check_install nginx 1 "ngninx is already installed" v
+    dotdeb_repo
     DEBIAN_FRONTEND=noninteractive apt-get install -y nginx
     /bin/cat <<"EOM" >/etc/nginx/sites-available/default
  server {
@@ -147,8 +152,8 @@ service nginx restart
     print_done "ngninx successfully installed."
 }
 function install_php {
-    dotdeb_repo
     check_install php5-fpm 1 "php5-fpm is already installed" v
+    dotdeb_repo
     DEBIAN_FRONTEND=noninteractive apt-get install php5-fpm php5-common php5-mysql php5-sqlite php5-mcrypt php5-curl curl php5-cli php5-gd -y
     wait
     sed -i "s|.*cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
@@ -877,8 +882,7 @@ print_info "e) Exit"
 read choice
 case $choice in
 1)
-echo "Enter username and password for the user you wish to create."
-echo "Enter username"
+print_info "Enter username"
 read username
 useradd -d /home/$username $username
 wait
@@ -887,14 +891,14 @@ chmod 750 /home/$username
 chown -R $username /home/$username
 wait
 passwd $username
-echo "User $username added with home dir /home/$username"
+print_info "User $username added with home dir /home/$username"
 break
 ;;
 2)
 echo "Enter username"
 read username
 deluser $username
-echo "User: $username deleted. Home directory is still intact"
+print_info "User: $username deleted. Home directory is still intact"
 break
 ;;
 3)
@@ -911,11 +915,15 @@ break
 esac
 done
 }
-function install_essentials {
+function system_management {
 while true; do
 print_info "1) Remove unneeded packages and services"
 print_info "2) Install essentials packages"
 print_info "3) Update timezone"
+print_info "4) System tests"
+print_info "5) Secure System"
+print_info "6) Speedtest.net"
+print_info "7) Get OS Version"
 print_info "e) Exit"
 read choice
 case $choice in
@@ -929,6 +937,22 @@ break
 ;;
 3)
 dpkg-reconfigure tzdata
+break
+;;
+4)
+system_tests
+break
+;;
+5)
+secure_system
+break
+;;
+6)
+run_speedtest
+break
+;;
+7)
+show_os_arch_version
 break
 ;;
 e)
@@ -966,7 +990,7 @@ print_done "Essentials services installed"
 }
 function script_about {
 print_info "Interactive essentials install script for VPS or Dedicated servers."
-print_info "Build with low end systems in mind."
+print_info "Build with low end systems in mind. Requires Debian version 7.x"
 print_info "https://github.com/eunas/essentials"
 print_info ""
 print_info "Credits: Xeoncross, mikel, Falko Timme, road warrior and many more."
@@ -1107,6 +1131,7 @@ python /home/speedtest-cli  --share
 fi
 }
 function install_softether {
+check_install softether 1 "SoftEtherVPN is already installed" v
 apt-get update
 apt-get install build-essential dnsmasq -y
 mkdir /tmp/softether
@@ -1246,6 +1271,7 @@ apt-get install iptables-persistent -y
 rm -rf /tmp/softether
 }
 function install_remotedesktop {
+check_install x2goserver 1 "X2Go Server is already installed." v
 apt-get update && apt-get upgrade -y
 apt-key adv --recv-keys --keyserver keys.gnupg.net E1F958385BFE2B6E
 file="/etc/apt/sources.list.d/x2go.list"
@@ -1265,6 +1291,50 @@ print_done "Installation completed"
 print_done "Remember to create a new user"
 print_done "X2Go client can be downloaded from"
 print_done "http://wiki.x2go.org/doku.php/download:start"
+}
+function secure_system {
+check_install fail2ban 1 "fail2ban is already installed." v
+while true; do
+print_info "This will install fail2ban, change the ssh port,"
+print_info "permit ssh root login and create a new user"
+print_info "Are you sure you want to continue ? [y/n]"
+read choice
+case $choice in
+y|Y|yes|Yes|YES)
+apt-get install fail2ban -y
+wait
+cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
+sed -i "s|.*PermitRootLogin yes.*|PermitRootLogin no|"  /etc/ssh/sshd_config
+##create user
+print_info "name for the new user:"
+read u
+useradd -d /home/$username $u
+wait
+mkdir -p "/home/$u"
+chmod 750 /home/$u
+chown -R $u /home/$u
+wait
+passwd $u
+print_info "User $username added with home dir /home/$username"
+##change ssh port
+print_info "Choose a new ssh port"
+read p
+sed -i "s|.*Port.*|Port $p|"  /etc/ssh/sshd_config
+service fail2ban restart
+wait
+service ssh restart
+wait
+print_done "Please check that your new user can login with ssh before closing this session."
+break
+;;
+n|N|no|No|NO)
+break
+;;
+     *)
+     echo "That is not a valid choice."
+     ;;
+esac
+done
 }
 ############################################################
 # Menu
@@ -1288,12 +1358,9 @@ print_info "13) sSMTP server"
 print_info "14) Aria2 + Webui"
 print_info "15) X2Go + Xfce Desktop"
 print_info "16) Linux-Dash"
-print_info "17) Speedtest.net"
-print_info "18) User Management"
-print_info "19) Server Essentials"
-print_info "20) Get OS Version"
-print_info "21) System tests"
-print_info "22) About"
+print_info "17) User Management"
+print_info "18) System Management"
+print_info "19) About"
 print_info "e) Exit"
 read choice
 case $choice in
@@ -1362,34 +1429,22 @@ get_linuxdash
 break
 ;;
 17)
-run_speedtest
-break
-;;
-18)
 user_management
 break
 ;;
+18)
+system_management
+break
+;;
 19)
-install_essentials
-break
-;;
-20)
-show_os_arch_version
-break
-;;
-21)
-system_tests
-break
-;;
-22)
 script_about
 break
 ;;
-e)
+e|E)
 break
 ;;
      *)
-     echo "That is not a valid choice, try a number from 1 to 15."
+     echo "That is not a valid choice, try a number from 1 to 19."
      ;;
 esac
 done

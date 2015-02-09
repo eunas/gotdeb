@@ -1,3 +1,19 @@
+### 1.4 (2015-02-07)
+
+## Fixed:
+- Certificate check in speedtest.net fixed
+- Reworked the menu
+
+## New:
+- SoftEtherVPN
+- Xfce desktop enviroment + X2Go server
+- [Secure system](https://github.com/eunas/essentials/wiki/Secure-System)
+ - Install fail2ban
+ - Change SSH port
+ - Prevent root SSH login
+ - Create new user
+- Wiki
+
 ## 1.3 (2015-02-04)
 
 ### Fixes:

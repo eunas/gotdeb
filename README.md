@@ -2,7 +2,7 @@
 
 Interactive essentials install script for VPS or Dedicated servers.
 Build with low end systems in mind.
-Requires Debian version 7.0 or above
+Requires Debian version 7.x
 
 ###Installation
 Run the script and follow the assistant:
@@ -28,11 +28,19 @@ Run the script and follow the assistant:
 * Aria2 1.18.9 + webui
 * X2Go + xfce Desktop
 * Linux Dash server monitor
-* Speedtest.net with image URL
 * User Management
-* Server Essentials
-* Get OS Version
-* About"
+ * Add user
+ * Delete user
+ * List Users
+* System Management
+ * Remove unneeded packages and services
+ * Install essentials packages
+ * Update timezone
+ * System tests
+ * Secure System
+ * Speedtest.net
+ * Get OS Version
+* About
 
 
 ###Disclaimer
