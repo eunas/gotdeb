@@ -22,11 +22,11 @@ Run the script and follow the assistant:
 * MCMyAdmin x64
 * pptp server
 * OpenVPN Server (Works on NAT)
-* SoftEtherVPS (Works on NAT)
+* [SoftEtherVPS (Works on NAT)](https://github.com/eunas/essentials/wiki/SoftEtherVPN)
 * Squid3 Proxy Server
 * sSMTP server
 * Aria2 1.18.9 + webui
-* X2Go + xfce Desktop
+* [X2Go + xfce Desktop](https://github.com/eunas/essentials/wiki/Remote-Desktop)
 * Linux Dash server monitor
 * User Management
  * Add user
@@ -37,7 +37,7 @@ Run the script and follow the assistant:
  * Install essentials packages
  * Update timezone
  * System tests
- * Secure System
+ * [Secure System](https://github.com/eunas/essentials/wiki/Secure-System)
  * Speedtest.net
  * Get OS Version
 * About
