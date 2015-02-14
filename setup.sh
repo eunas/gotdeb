@@ -65,21 +65,45 @@ function update_upgrade {
 	# also remove the orphaned stuff
 	apt-get -q -y autoremove
 }
-function dotdeb_repo {
-file="/etc/apt/sources.list.d/dotdeb.list"
+function dotdeb_php_repo {
+print_info "Installing PHP-FPM..."
+file="/etc/apt/sources.list.d/dotdeb_php.list"
 if [ ! -f "$file" ]
 then
-touch /etc/apt/sources.list.d/dotdeb.list
-echo "deb http://packages.dotdeb.org wheezy-php56 all" >> /etc/apt/sources.list.d/dotdeb.list
-echo "deb-src http://packages.dotdeb.org wheezy-php56 all" >> /etc/apt/sources.list.d/dotdeb.list
-echo "deb http://packages.dotdeb.org wheezy all" >> /etc/apt/sources.list.d/dotdeb.list
-echo "deb-src http://packages.dotdeb.org wheezy all" >> /etc/apt/sources.list.d/dotdeb.list
-wget http://www.dotdeb.org/dotdeb.gpg
-apt-key add dotdeb.gpg
+touch /etc/apt/sources.list.d/dotdeb_php.list
+echo "deb http://packages.dotdeb.org wheezy-php56 all" >> /etc/apt/sources.list.d/dotdeb_php.list
+echo "deb-src http://packages.dotdeb.org wheezy-php56 all" >> /etc/apt/sources.list.d/dotdeb_php.list
+wget http://www.dotdeb.org/dotdeb.gpg &> /dev/null
+apt-key add dotdeb.gpg &> /dev/null
 wait
 rm dotdeb.gpg
 fi
-apt-get update
+apt-get update &> /dev/null
+wait
+}
+function nginx_repo {
+print_info "Installing nginx..."
+file="/etc/apt/sources.list.d/nginx.list"
+if [ ! -f "$file" ]
+then
+touch /etc/apt/sources.list.d/nginx.list
+fi
+if [ $nginx = "1" ]
+then
+>/etc/apt/sources.list.d/nginx.list
+echo "deb http://nginx.org/packages/debian/ wheezy nginx" >> /etc/apt/sources.list.d/nginx.list
+echo "deb-src http://nginx.org/packages/debian/ wheezy nginx" >> /etc/apt/sources.list.d/nginx.list
+elif [ $nginx = "2" ]
+then
+>/etc/apt/sources.list.d/nginx.list
+echo "deb http://nginx.org/packages/mainline/debian/ wheezy nginx" >> /etc/apt/sources.list.d/nginx.list
+echo "deb-src http://nginx.org/packages/mainline/debian/ wheezy nginx" >> /etc/apt/sources.list.d/nginx.list
+fi
+wget http://nginx.org/keys/nginx_signing.key &> /dev/null
+apt-key add nginx_signing.key &> /dev/null
+wait
+rm nginx_signing.key
+apt-get update &> /dev/null
 wait
 }
 function mariadb_repo {
@@ -89,17 +113,21 @@ then
 touch /etc/apt/sources.list.d/mariadb.list
 echo "deb http://nyc2.mirrors.digitalocean.com/mariadb/repo/10.0/debian wheezy main" >> /etc/apt/sources.list.d/mariadb.list
 echo "deb-src http://nyc2.mirrors.digitalocean.com/mariadb/repo/10.0/debian wheezy main" >> /etc/apt/sources.list.d/mariadb.list
-apt-key adv --recv-keys --keyserver keyserver.ubuntu.com 0xcbcb082a1bb943db
+apt-key adv --recv-keys --keyserver keyserver.ubuntu.com 0xcbcb082a1bb943db &> /dev/null
 wait
+apt-get update &> /dev/null
 fi
-apt-get update
 wait
 }
 function mysql_opt {
-mysql_secure_installation
+mysqladmin -u root password "$dbpass"
+#mysql -u root -p"$dbpass" -e "UPDATE mysql.user SET Password=PASSWORD('$dbpass') WHERE User='root'"
+mysql -u root -p"$dbpass" -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1')"
+mysql -u root -p"$dbpass" -e "DELETE FROM mysql.user WHERE User=''"
+mysql -u root -p"$dbpass" -e "DELETE FROM mysql.db WHERE Db='test' OR Db='test\_%'"
+mysql -u root -p"$dbpass" -e "FLUSH PRIVILEGES"
 sed -i '/skip-external-locking/ a\innodb=OFF' /etc/mysql/my.cnf
 sed -i '/innodb=OFF/ a\default-storage-engine=MyISAM' /etc/mysql/my.cnf
-sed -i '/default-storage-engine=MyISAM/ a\default-tmp-storage-engine=MyISAM' /etc/mysql/my.cnf
 sed -i "s|.*default_storage_engine.*|#|" /etc/mysql/my.cnf
 service mysql restart
 }
@@ -108,9 +136,35 @@ service mysql restart
 ############################################################
 function install_nginx {
     check_install nginx 1 "ngninx is already installed" v
-    dotdeb_repo
-    DEBIAN_FRONTEND=noninteractive apt-get install -y nginx
-    /bin/cat <<"EOM" >/etc/nginx/sites-available/default
+    print_info "Please choose what version of nginx you want to install"
+    print_info "1) nginx 1.6.2"
+    print_info "2) nginx 1.7.9"
+    read nginx
+    print_info "Install PHP-FPM ? (y/n)"
+    read php
+    print_info "Install MariaDB Server ? (y/n)"
+    read db
+    if [[ $db = "n" ]]
+    then
+    print_info "Install MySQL Server ? (y/n)"
+    read db1
+    fi
+    if [[ $php = "y" ]] && [[ $db = "y" ]] || [[ $db1 = "y" ]]
+    then
+    print_info "Install phpMyAdmin (y/n)"
+    read phpadm
+    fi
+    print_info "Enter Domain, leave blank to use IP"
+    read d
+    if which apache2 >/dev/null; then
+    print_info "Apache2 detected, please wait while we remove it..."
+    service apache2 stop &> /dev/null
+    apt-get --purge remove apache2 -y &> /dev/null
+    fi
+    nginx_repo
+    apt-get --purge remove apache2 -y &> /dev/null
+    DEBIAN_FRONTEND=noninteractive apt-get install -y nginx &> /dev/null
+    /bin/cat <<"EOM" >/etc/nginx/conf.d/default.conf
  server {
     listen 80 default_server;
     listen [::]:80 default_server ipv6only=on;
@@ -137,35 +191,77 @@ function install_nginx {
         fastcgi_index index.php;
         include fastcgi_params;
     }
+	location = /favicon.ico {
+        log_not_found off;
+        access_log off;
+    }
+    location = /robots.txt {
+        allow all;
+        log_not_found off;
+        access_log off;
+    }
+    location ~ /\. {
+        deny all;
+        log_not_found off;
+        access_log off;
+    }
+
+    location ~* /(?:uploads|files)/.*\.php$ {
+        deny all;
+    }
+	location ~ \.(eot|ttf|woff|svg|css)$ {
+	    add_header Access-Control-Allow-Origin "*";
+	}
+ 	location ~* \.(js|css|png|jpg|jpeg|gif|ico)$ {
+        expires max;
+        log_not_found off;
+        access_log off;
+    }
 }
 EOM
-cpu_count=`grep -c ^processor /proc/cpuinfo`
-sed -i "s|.*worker_processes [0-9].*|worker_processes $cpu_count;|" /etc/nginx/nginx.conf
-IP=$(ifconfig | grep 'inet addr:' | grep -v inet6 | grep -vE '127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut -d: -f2 | awk '{ print $1}' | head -1)
-print_info "Enter Domain, leave blank to use IP"
-read d
 if [ -z "$d" ] ; then
-d="$IP"
+d="$(get_ip)"
 fi
-sed -i "s|.*server_name.*|        server_name "$d";|" /etc/nginx/sites-available/default
-service nginx restart
+sed -i "s|.*server_name.*|        server_name "$(get_ip)";|" /etc/nginx/conf.d/default.conf
+sed -i "s|.*user.*nginx.*|user www-data;|" /etc/nginx/nginx.conf
+cpu_count=`grep -c ^processor /proc/cpuinfo`
+sed -i "s|.*worker_processes.*[0-9].*|worker_processes $cpu_count;|" /etc/nginx/nginx.conf
+sed -i "s|.*    #gzip  on;.*|    gzip  on;|" /etc/nginx/nginx.conf
+sed -i '/    gzip  on;/ a\    gzip_vary on;' /etc/nginx/nginx.conf
+sed -i '/    gzip_vary on;/ a\    gzip_proxied any;' /etc/nginx/nginx.conf
+sed -i '/    gzip_proxied any;/ a\    gzip_comp_level 6;' /etc/nginx/nginx.conf
+sed -i '/    gzip_comp_level 6;/ a\    gzip_buffers 16 8k;' /etc/nginx/nginx.conf
+sed -i '/    gzip_buffers 16 8k;/ a\    gzip_http_version 1.1;' /etc/nginx/nginx.conf
+sed -i '/    gzip_http_version 1.1;/ a\    gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;' /etc/nginx/nginx.conf
+sed -i '/.*    sendfile.*;/ a\    server_tokens   off; ' /etc/nginx/nginx.conf
+service nginx restart &>  /dev/null
     print_done "ngninx successfully installed."
+if [[ $php = "y" ]]
+then
+install_php
+fi
+if [[ $db = "y" ]]
+then
+install_mariadb
+fi
+if [[ $db1 = "y" ]]
+then
+install_mysql
+fi
+if [[ $phpadm = "y" ]]
+then
+install_phpmyadmin
+fi
 }
 function install_php {
     check_install php5-fpm 1 "php5-fpm is already installed" v
-    dotdeb_repo
-    DEBIAN_FRONTEND=noninteractive apt-get install php5-fpm php5-common php5-mysql php5-sqlite php5-mcrypt php5-curl curl php5-cli php5-gd -y
+    dotdeb_php_repo
+    DEBIAN_FRONTEND=noninteractive apt-get install php5-fpm php5-common php5-mysql php5-sqlite php5-mcrypt php5-curl curl php5-cli php5-gd -y &> /dev/null
     wait
     sed -i "s|.*cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
     sed -i "s|.*upload_max_filesize = 2M.*|upload_max_filesize = 128M|" /etc/php5/fpm/php.ini
     sed -i "s|.*post_max_size = 8M.*|post_max_size = 128M|" /etc/php5/fpm/php.ini
     sed -i "s|.*reload signal USR2.*|        #reload signal USR2|" /etc/init/php5-fpm.conf
-    sed -i "s|.*# gzip_vary on.*|        gzip_vary on;|" /etc/nginx/nginx.conf
-    sed -i "s|.*# gzip_proxied any.*|        gzip_proxied any;|" /etc/nginx/nginx.conf
-    sed -i "s|.*# gzip_comp_level 6.*|        gzip_comp_level 6;|" /etc/nginx/nginx.conf
-    sed -i "s|.*# gzip_buffers 16 8k.*|         gzip_buffers 16 8k;|" /etc/nginx/nginx.conf
-    sed -i "s|.*# gzip_http_version 1.1.*|        gzip_http_version 1.1;|" /etc/nginx/nginx.conf
-    sed -i "s|.*# gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript.*|        gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;|" /etc/nginx/nginx.conf
     service php5-fpm start
     wait
     touch /usr/share/nginx/html/info.php
@@ -179,20 +275,27 @@ EOM
 function install_mysql {
 check_install mysql-server 1 "MySQL is already installed"
 check_install mariadb-server 1 "MariaDB is the current DB server. Can't install MySQL"
-apt-get update
+print_info "Enter a password for the mysql root user:"
+read -s dbpass
+print_info "Installing MySql Server, please wait..."
+apt-get update &> /dev/null
 wait
-DEBIAN_FRONTEND=noninteractive apt-get  -y install mysql-server mysql-client
+DEBIAN_FRONTEND=noninteractive apt-get -y install mysql-server mysql-client &> /dev/null
 wait
-mysql_opt
+mysql_opt $dbpass
 print_done "MySQL successfully installed."
 }
 function install_mariadb {
 check_install mysql-server  1 "MySQL is the current DB server. Can't install Mariadb"
 check_install mariadb-server 1 "MariaDB Server is already installed"
+print_info "Enter a password for the mysql root user:"
+read -s dbpass
+print_info "Installing MariaDB Server, please wait...";
 mariadb_repo
-DEBIAN_FRONTEND=noninteractive apt-get -y install python-software-properties mariadb-server mariadb-client
+DEBIAN_FRONTEND=noninteractive apt-get -y install python-software-properties mariadb-server mariadb-client &> /dev/null
 wait
-mysql_opt
+mysql_opt $dbpass
+sed -i '/default-storage-engine=MyISAM/ a\default-tmp-storage-engine=MyISAM' /etc/mysql/my.cnf
 print_done "MariaDB successfully installed."
 }
 function install_phpmyadmin {
@@ -205,21 +308,31 @@ then
         exit 1
 
 fi
+print_info "Installing phpMyAdmin"
+print_info "Enter password of the MySQL root user"
+read -s root_pw
+print_info "Provide a password for phpmyadmin to register with the database server"
+read -s pm_passwd
+apt-get install debconf-utils -y &> /dev/null
 echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect none" | debconf-set-selections
 echo "phpmyadmin phpmyadmin/dbconfig-install boolean true" | debconf-set-selections
-apt-get install phpmyadmin -y
+echo "phpmyadmin phpmyadmin/mysql/admin-pass password $root_pw" | debconf-set-selections
+echo "phpmyadmin phpmyadmin/mysql/app-pass password $pm_passwd" | debconf-set-selections
+echo "phpmyadmin phpmyadmin/app-password-confirm password $pm_passwd" | debconf-set-selections
+apt-get install phpmyadmin -y &>/dev/null
 wait
 ln -s /usr/share/phpmyadmin/ /usr/share/nginx/html
 print_done "phpMyAdmin successfully installed."
 }
 function install_pureftpd {
 check_install pure-ftpd 1 "Pure-ftpd is already installed." v
-apt-get update
-wait
-DEBIAN_FRONTEND=noninteractive apt-get install pure-ftpd -y
-wait
 print_info "Define port for Pure-ftpd, leave blank for port 21"
 read p
+print_info "Installing Pure-FTPd..."
+apt-get update &> /dev/null
+wait
+DEBIAN_FRONTEND=noninteractive apt-get install pure-ftpd -y &> /dev/null
+wait
 if [ -z "$p" ] ; then
 p="21"
 fi
@@ -229,7 +342,7 @@ echo "yes" > /etc/pure-ftpd/conf/ChrootEveryone
 echo "2" > /etc/pure-ftpd/conf/TLS
 echo "$p" > /etc/pure-ftpd/conf/Bind
 openssl req -x509 -nodes -days 7300 -newkey rsa:2048 -keyout /etc/ssl/private/pure-ftpd.pem -out /etc/ssl/private/pure-ftpd.pem -subj "/C=US/ST=defaultstate/L=defaultcity/O=myorg/CN=localhost"
-service pure-ftpd restart
+service pure-ftpd restart &> /dev/null
 print_done "Pure-FTPd with FTPS support successfully installed."
 }
 function install_java {
@@ -411,14 +524,60 @@ fi
 }
 function install_openvpn {
 if [[ ! -e /dev/net/tun ]]; then
-	print_info "TUN/TAP is not available"
+	echo "TUN/TAP is not available"
 	exit
 fi
+
+
+if grep -q "CentOS release 5" "/etc/redhat-release"; then
+	echo "CentOS 5 is too old and not supported"
+	exit
+fi
+
+if [[ -e /etc/debian_version ]]; then
+	OS=debian
+	RCLOCAL='/etc/rc.local'
+elif [[ -e /etc/centos-release || -e /etc/redhat-release ]]; then
+	OS=centos
+	RCLOCAL='/etc/rc.d/rc.local'
+	# Needed for CentOS 7
+	chmod +x /etc/rc.d/rc.local
+else
+	echo "Looks like you aren't running this installer on a Debian, Ubuntu or CentOS system"
+	exit
+fi
+
+newclient () {
+	# Generates the client.ovpn
+	cp /usr/share/doc/openvpn*/*ample*/sample-config-files/client.conf ~/$1.ovpn
+	sed -i "/ca ca.crt/d" ~/$1.ovpn
+	sed -i "/cert client.crt/d" ~/$1.ovpn
+	sed -i "/key client.key/d" ~/$1.ovpn
+	echo "<ca>" >> ~/$1.ovpn
+	cat /etc/openvpn/easy-rsa/2.0/keys/ca.crt >> ~/$1.ovpn
+	echo "</ca>" >> ~/$1.ovpn
+	echo "<cert>" >> ~/$1.ovpn
+	cat /etc/openvpn/easy-rsa/2.0/keys/$1.crt >> ~/$1.ovpn
+	echo "</cert>" >> ~/$1.ovpn
+	echo "<key>" >> ~/$1.ovpn
+	cat /etc/openvpn/easy-rsa/2.0/keys/$1.key >> ~/$1.ovpn
+	echo "</key>" >> ~/$1.ovpn
+}
+
+geteasyrsa () {
+	wget --no-check-certificate -O ~/easy-rsa.tar.gz https://github.com/OpenVPN/easy-rsa/archive/2.2.2.tar.gz
+	tar xzf ~/easy-rsa.tar.gz -C ~/
+	mkdir -p /etc/openvpn/easy-rsa/2.0/
+	cp ~/easy-rsa-2.2.2/easy-rsa/2.0/* /etc/openvpn/easy-rsa/2.0/
+	rm -rf ~/easy-rsa-2.2.2
+	rm -rf ~/easy-rsa.tar.gz
+}
+
 
 # Try to get our IP from the system and fallback to the Internet.
 # I do this to make the script compatible with NATed servers (lowendspirit.com)
 # and to avoid getting an IPv6.
-IP=$(ifconfig | grep 'inet addr:' | grep -v inet6 | grep -vE '127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut -d: -f2 | awk '{ print $1}' | head -1)
+IP=$(ip addr | grep 'inet' | grep -v inet6 | grep -vE '127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | grep -o -E '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | head -1)
 if [[ "$IP" = "" ]]; then
 		IP=$(wget -qO- ipv4.icanhazip.com)
 fi
@@ -449,20 +608,10 @@ if [[ -e /etc/openvpn/server.conf ]]; then
 			export KEY_CN="$CLIENT"
 			export EASY_RSA="${EASY_RSA:-.}"
 			"$EASY_RSA/pkitool" $CLIENT
-			# Let's generate the client config
-			mkdir ~/ovpn-$CLIENT
-			cp /usr/share/doc/openvpn/examples/sample-config-files/client.conf ~/ovpn-$CLIENT/$CLIENT.conf
-			cp /etc/openvpn/easy-rsa/2.0/keys/ca.crt ~/ovpn-$CLIENT
-			cp /etc/openvpn/easy-rsa/2.0/keys/$CLIENT.crt ~/ovpn-$CLIENT
-			cp /etc/openvpn/easy-rsa/2.0/keys/$CLIENT.key ~/ovpn-$CLIENT
-			cd ~/ovpn-$CLIENT
-			sed -i "s|cert client.crt|cert $CLIENT.crt|" $CLIENT.conf
-			sed -i "s|key client.key|key $CLIENT.key|" $CLIENT.conf
-			tar -czf ../ovpn-$CLIENT.tar.gz $CLIENT.conf ca.crt $CLIENT.crt $CLIENT.key
-			cd ~/
-			rm -rf ovpn-$CLIENT
+			# Generate the client.ovpn
+			newclient "$CLIENT"
 			echo ""
-			echo "Client $CLIENT added, certs available at ~/ovpn-$CLIENT.tar.gz"
+			echo "Client $CLIENT added, certs available at ~/$CLIENT.ovpn"
 			exit
 			;;
 			2)
@@ -473,63 +622,89 @@ if [[ -e /etc/openvpn/server.conf ]]; then
 			. /etc/openvpn/easy-rsa/2.0/vars
 			. /etc/openvpn/easy-rsa/2.0/revoke-full $CLIENT
 			# If it's the first time revoking a cert, we need to add the crl-verify line
-			if grep -q "crl-verify" "/etc/openvpn/server.conf"; then
-				echo ""
-				echo "Certificate for client $CLIENT revoked"
-			else
+			if ! grep -q "crl-verify" "/etc/openvpn/server.conf"; then
 				echo "crl-verify /etc/openvpn/easy-rsa/2.0/keys/crl.pem" >> "/etc/openvpn/server.conf"
 				/etc/init.d/openvpn restart
-				echo ""
-				echo "Certificate for client $CLIENT revoked"
 			fi
+			echo ""
+			echo "Certificate for client $CLIENT revoked"
 			exit
 			;;
 			3)
-			apt-get remove --purge -y openvpn openvpn-blacklist
-			rm -rf /etc/openvpn
-			rm -rf /usr/share/doc/openvpn
-			sed -i '/--dport 53 -j REDIRECT --to-port/d' /etc/rc.local
-			sed -i '/iptables -t nat -A POSTROUTING -s 10.8.0.0/d' /etc/rc.local
 			echo ""
-			echo "OpenVPN removed!"
+			read -p "Do you really want to remove OpenVPN? [y/n]: " -e -i n REMOVE
+			if [[ "$REMOVE" = 'y' ]]; then
+				if [[ "$OS" = 'debian' ]]; then
+					apt-get remove --purge -y openvpn openvpn-blacklist
+				else
+					yum remove openvpn -y
+				fi
+				rm -rf /etc/openvpn
+				rm -rf /usr/share/doc/openvpn*
+				sed -i '/--dport 53 -j REDIRECT --to-port/d' $RCLOCAL
+				sed -i '/iptables -t nat -A POSTROUTING -s 10.8.0.0/d' $RCLOCAL
+				echo ""
+				echo "OpenVPN removed!"
+			else
+				echo ""
+				echo "Removal aborted!"
+			fi
 			exit
 			;;
 			4) exit;;
 		esac
 	done
 else
+	clear
+	echo 'Welcome to this quick OpenVPN "road warrior" installer'
+	echo ""
 	# OpenVPN setup and first user creation
-	print_info "I need to ask you a few questions before starting the setup"
-	print_info "You can leave the default options and just press enter if you are ok with them"
-	print_info ""
-	print_info "First I need to know the IPv4 address of the network interface you want OpenVPN"
-	print_info "listening to."
+	echo "I need to ask you a few questions before starting the setup"
+	echo "You can leave the default options and just press enter if you are ok with them"
+	echo ""
+	echo "First I need to know the IPv4 address of the network interface you want OpenVPN"
+	echo "listening to."
 	read -p "IP address: " -e -i $IP IP
-	print_info ""
-	print_info "What port do you want for OpenVPN?"
+	echo ""
+	echo "What port do you want for OpenVPN?"
 	read -p "Port: " -e -i 1194 PORT
-	print_info ""
-	print_info "Do you want OpenVPN to be available at port 53 too?"
-	print_info "This can be useful to connect under restrictive networks"
+	echo ""
+	echo "Do you want OpenVPN to be available at port 53 too?"
+	echo "This can be useful to connect under restrictive networks"
 	read -p "Listen at port 53 [y/n]: " -e -i n ALTPORT
-	print_info ""
-	print_info "Finally, tell me your name for the client cert"
-	print_info "Please, use one word only, no special characters"
+	echo ""
+	echo "Do you want to enable internal networking for the VPN?"
+	echo "This can allow VPN clients to communicate between them"
+	read -p "Allow internal networking [y/n]: " -e -i n INTERNALNETWORK
+	echo ""
+	echo "What DNS do you want to use with the VPN?"
+	echo "   1) Current system resolvers"
+	echo "   2) OpenDNS"
+	echo "   3) Level 3"
+	echo "   4) NTT"
+	echo "   5) Hurricane Electric"
+	echo "   6) Yandex"
+	read -p "DNS [1-6]: " -e -i 1 DNS
+	echo ""
+	echo "Finally, tell me your name for the client cert"
+	echo "Please, use one word only, no special characters"
 	read -p "Client name: " -e -i client CLIENT
-	print_info ""
-	print_info "Okay, that was all I needed. We are ready to setup your OpenVPN server now"
+	echo ""
+	echo "Okay, that was all I needed. We are ready to setup your OpenVPN server now"
 	read -n1 -r -p "Press any key to continue..."
-	apt-get update
-	apt-get install openvpn iptables openssl -y
-	cp -R /usr/share/doc/openvpn/examples/easy-rsa/ /etc/openvpn
-	# easy-rsa isn't available by default for Debian Jessie and newer
-	if [[ ! -d /etc/openvpn/easy-rsa/2.0/ ]]; then
-		wget --no-check-certificate -O ~/easy-rsa.tar.gz https://github.com/OpenVPN/easy-rsa/archive/2.2.2.tar.gz
-		tar xzf ~/easy-rsa.tar.gz -C ~/
-		mkdir -p /etc/openvpn/easy-rsa/2.0/
-		cp ~/easy-rsa-2.2.2/easy-rsa/2.0/* /etc/openvpn/easy-rsa/2.0/
-		rm -rf ~/easy-rsa-2.2.2
-		rm -rf ~/easy-rsa.tar.gz
+	if [[ "$OS" = 'debian' ]]; then
+		apt-get update
+		apt-get install openvpn iptables openssl -y
+		cp -R /usr/share/doc/openvpn/examples/easy-rsa/ /etc/openvpn
+		# easy-rsa isn't available by default for Debian Jessie and newer
+		if [[ ! -d /etc/openvpn/easy-rsa/2.0/ ]]; then
+			geteasyrsa
+		fi
+	else
+		# Else, the distro is CentOS
+		yum install epel-release -y
+		yum install openvpn iptables openssl wget -y
+		geteasyrsa
 	fi
 	cd /etc/openvpn/easy-rsa/2.0/
 	# Let's fix one thing first...
@@ -554,8 +729,10 @@ else
 	# DH params
 	. /etc/openvpn/easy-rsa/2.0/build-dh
 	# Let's configure the server
-	cd /usr/share/doc/openvpn/examples/sample-config-files
-	gunzip -d server.conf.gz
+	cd /usr/share/doc/openvpn*/*ample*/sample-config-files
+	if [[ "$OS" = 'debian' ]]; then
+		gunzip -d server.conf.gz
+	fi
 	cp server.conf /etc/openvpn/
 	cd /etc/openvpn/easy-rsa/2.0/keys
 	cp ca.crt ca.key dh2048.pem server.crt server.key /etc/openvpn
@@ -564,35 +741,82 @@ else
 	sed -i 's|dh dh1024.pem|dh dh2048.pem|' server.conf
 	sed -i 's|;push "redirect-gateway def1 bypass-dhcp"|push "redirect-gateway def1 bypass-dhcp"|' server.conf
 	sed -i "s|port 1194|port $PORT|" server.conf
-	# Obtain the resolvers from resolv.conf and use them for OpenVPN
-	grep -v '#' /etc/resolv.conf | grep 'nameserver' | grep -E -o '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | while read line; do
-		sed -i "/;push \"dhcp-option DNS 208.67.220.220\"/a\push \"dhcp-option DNS $line\"" server.conf
-	done
+	# DNS
+	case $DNS in
+		1)
+		# Obtain the resolvers from resolv.conf and use them for OpenVPN
+		grep -v '#' /etc/resolv.conf | grep 'nameserver' | grep -E -o '[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | while read line; do
+			sed -i "/;push \"dhcp-option DNS 208.67.220.220\"/a\push \"dhcp-option DNS $line\"" server.conf
+		done
+		;;
+		2)
+		sed -i 's|;push "dhcp-option DNS 208.67.222.222"|push "dhcp-option DNS 208.67.222.222"|' server.conf
+		sed -i 's|;push "dhcp-option DNS 208.67.220.220"|push "dhcp-option DNS 208.67.220.220"|' server.conf
+		;;
+		3)
+		sed -i 's|;push "dhcp-option DNS 208.67.222.222"|push "dhcp-option DNS 4.2.2.2"|' server.conf
+		sed -i 's|;push "dhcp-option DNS 208.67.220.220"|push "dhcp-option DNS 4.2.2.4"|' server.conf
+		;;
+		4)
+		sed -i 's|;push "dhcp-option DNS 208.67.222.222"|push "dhcp-option DNS 129.250.35.250"|' server.conf
+		sed -i 's|;push "dhcp-option DNS 208.67.220.220"|push "dhcp-option DNS 129.250.35.251"|' server.conf
+		;;
+		5)
+		sed -i 's|;push "dhcp-option DNS 208.67.222.222"|push "dhcp-option DNS 74.82.42.42"|' server.conf
+		;;
+		6)
+		sed -i 's|;push "dhcp-option DNS 208.67.222.222"|push "dhcp-option DNS 77.88.8.8"|' server.conf
+		sed -i 's|;push "dhcp-option DNS 208.67.220.220"|push "dhcp-option DNS 77.88.8.1"|' server.conf
+		;;
+	esac
 	# Listen at port 53 too if user wants that
 	if [[ "$ALTPORT" = 'y' ]]; then
 		iptables -t nat -A PREROUTING -p udp -d $IP --dport 53 -j REDIRECT --to-port $PORT
-		sed -i "/# By default this script does nothing./a\iptables -t nat -A PREROUTING -p udp -d $IP --dport 53 -j REDIRECT --to-port $PORT" /etc/rc.local
+		sed -i "1 a\iptables -t nat -A PREROUTING -p udp -d $IP --dport 53 -j REDIRECT --to-port $PORT" $RCLOCAL
 	fi
 	# Enable net.ipv4.ip_forward for the system
-	sed -i 's|#net.ipv4.ip_forward=1|net.ipv4.ip_forward=1|' /etc/sysctl.conf
+	if [[ "$OS" = 'debian' ]]; then
+		sed -i 's|#net.ipv4.ip_forward=1|net.ipv4.ip_forward=1|' /etc/sysctl.conf
+	else
+		# CentOS 5 and 6
+		sed -i 's|net.ipv4.ip_forward = 0|net.ipv4.ip_forward = 1|' /etc/sysctl.conf
+		# CentOS 7
+		if ! grep -q "net.ipv4.ip_forward=1" "/etc/sysctl.conf"; then
+			echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf
+		fi
+	fi
 	# Avoid an unneeded reboot
 	echo 1 > /proc/sys/net/ipv4/ip_forward
 	# Set iptables
-	iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -j SNAT --to $IP
-	sed -i "/# By default this script does nothing./a\iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -j SNAT --to $IP" /etc/rc.local
+	if [[ "$INTERNALNETWORK" = 'y' ]]; then
+		iptables -t nat -A POSTROUTING -s 10.8.0.0/24 ! -d 10.8.0.0/24 -j SNAT --to $IP
+		sed -i "1 a\iptables -t nat -A POSTROUTING -s 10.8.0.0/24 ! -d 10.8.0.0/24 -j SNAT --to $IP" $RCLOCAL
+	else
+		iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -j SNAT --to $IP
+		sed -i "1 a\iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -j SNAT --to $IP" $RCLOCAL
+	fi
 	# And finally, restart OpenVPN
-	/etc/init.d/openvpn restart
-	# Let's generate the client config
-	mkdir ~/ovpn-$CLIENT
+	if [[ "$OS" = 'debian' ]]; then
+		/etc/init.d/openvpn restart
+	else
+		# Little hack to check for systemd
+		if pidof systemd; then
+			systemctl restart openvpn@server.service
+			systemctl enable openvpn@server.service
+		else
+			service openvpn restart
+			chkconfig openvpn on
+		fi
+	fi
 	# Try to detect a NATed connection and ask about it to potential LowEndSpirit
 	# users
 	EXTERNALIP=$(wget -qO- ipv4.icanhazip.com)
 	if [[ "$IP" != "$EXTERNALIP" ]]; then
-		print_info ""
-		print_info "Looks like your server is behind a NAT!"
-		print_info ""
-		print_info "If your server is NATed (LowEndSpirit, NanoVZ), I need to know the external IP"
-		print_info "If that's not the case, just ignore this and leave the next field blank"
+		echo ""
+		echo "Looks like your server is behind a NAT!"
+		echo ""
+		echo "If your server is NATed (LowEndSpirit), I need to know the external IP"
+		echo "If that's not the case, just ignore this and leave the next field blank"
 		read -p "External IP: " -e USEREXTERNALIP
 		if [[ "$USEREXTERNALIP" != "" ]]; then
 			IP=$USEREXTERNALIP
@@ -600,22 +824,14 @@ else
 	fi
 	# IP/port set on the default client.conf so we can add further users
 	# without asking for them
-	sed -i "s|remote my-server-1 1194|remote $IP $PORT|" /usr/share/doc/openvpn/examples/sample-config-files/client.conf
-	cp /usr/share/doc/openvpn/examples/sample-config-files/client.conf ~/ovpn-$CLIENT/$CLIENT.conf
-	cp /etc/openvpn/easy-rsa/2.0/keys/ca.crt ~/ovpn-$CLIENT
-	cp /etc/openvpn/easy-rsa/2.0/keys/$CLIENT.crt ~/ovpn-$CLIENT
-	cp /etc/openvpn/easy-rsa/2.0/keys/$CLIENT.key ~/ovpn-$CLIENT
-	cd ~/ovpn-$CLIENT
-	sed -i "s|cert client.crt|cert $CLIENT.crt|" $CLIENT.conf
-	sed -i "s|key client.key|key $CLIENT.key|" $CLIENT.conf
-	tar -czf ../ovpn-$CLIENT.tar.gz $CLIENT.conf ca.crt $CLIENT.crt $CLIENT.key
-	cd ~/
-	rm -rf ovpn-$CLIENT
-	print_info ""
-	print_done "Finished!"
-	print_done ""
-	print_done "Your client config is available at ~/ovpn-$CLIENT.tar.gz"
-	print_done "If you want to add more clients, you simply need to run this script another time!"
+	sed -i "s|remote my-server-1 1194|remote $IP $PORT|" /usr/share/doc/openvpn*/*ample*/sample-config-files/client.conf
+	# Generate the client.ovpn
+	newclient "$CLIENT"
+	echo ""
+	echo "Finished!"
+	echo ""
+	echo "Your client config is available at ~/$CLIENT.ovpn"
+	echo "If you want to add more clients, you simply need to run this script another time!"
 fi
 }
 function install_squid3 {
@@ -973,6 +1189,7 @@ function remove_unneeded {
 	apt-get --purge remove -y bind9*
 	apt-get --purge remove -y samba*
 	apt-get --purge remove -y nscd
+    apt-get install sysv-rc-conf -y
     sysv-rc-conf xinetd off
     sysv-rc-conf saslauthd off
 
@@ -1011,21 +1228,20 @@ exit 1
 fi
 check_install nginx 0 "Please install nginx"
 check_install php5-fpm 0 "Please install PHP"
-IP=$(ifconfig | grep 'inet addr:' | grep -v inet6 | grep -vE '127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut -d: -f2 | awk '{ print $1}' | head -1)
-apt-get install build-essential git autoconf dh-autoreconf libc-ares2 libc6 libgcc1 libgcrypt11 libgnutls26 libsqlite3-0 libstdc++6 libunwind7 libxml2 zlib1g libc-ares2 libcppunit-dev libxml2-dev libgcrypt11-dev pkg-config libgnutls-dev nettle-dev libc-ares-dev libsqlite3-dev libssl-dev sphinx-common -y
-mkdir /tmp/aria2
-git clone https://github.com/tatsuhiro-t/aria2.git /tmp/aria2
+print_info "Installing Aria2 (This might take some time, please be patient...)"
+file="/etc/apt/sources.list.d/debian-testing.list"
+if [ ! -f "$file" ]
+then
+touch /etc/apt/sources.list.d/debian-testing.list
+echo "deb http://http.us.debian.org/debian testing main non-free contrib" >>/etc/apt/sources.list.d/debian-testing.list
+echo "deb-src http://http.us.debian.org/debian testing main non-free contrib" >>/etc/apt/sources.list.d/debian-testing.list
+apt-get update &> /dev/null
 wait
-cd /tmp/aria2
-autoreconf -i
+fi
+DEBIAN_FRONTEND=noninteractive apt-get install aria2 git -y
 wait
-./configure
-wait
-make
-wait
-make install
-wait
-make check
+rm /etc/apt/sources.list.d/debian-testing.list
+apt-get update
 wait
 mkdir /usr/share/aria2
 mkdir /usr/share/Downloads
@@ -1057,7 +1273,7 @@ retry-wait=30
 max-tries=50
 EOM
 print_info "Enter a secret token"
-read secret
+read -s secret
 touch /etc/init.d/aria2
 /bin/cat <<"EOM" >/etc/init.d/aria2
 #! /bin/sh
@@ -1101,9 +1317,9 @@ exit $RETVAL
 EOM
 sed -i "s|.*aria2c --daemon=true --enable-rpc --rpc-listen-all --rpc-secret=secret.*|aria2c --daemon=true --enable-rpc --rpc-listen-all --rpc-secret=$secret -D --conf-path=/usr/share/aria2/aria2.conf;|" /etc/init.d/aria2
 chmod +x /etc/init.d/aria2
-update-rc.d aria2 defaults
-git clone https://github.com/ziahamza/webui-aria2.git /usr/share/nginx/html/aria2
-service aria2 start
+update-rc.d aria2 defaults &> /dev/null
+git clone https://github.com/ziahamza/webui-aria2.git /usr/share/nginx/html/aria2 &> /dev/null
+service aria2 start &> /dev/null
 wait
 rm -rf /tmp/aria2
 print_done "Aria2 has been installed"
@@ -1131,19 +1347,26 @@ python /home/speedtest-cli  --share
 fi
 }
 function install_softether {
+if [[ ! -e /dev/net/tun ]]; then
+	print_info "TUN/TAP is not available"
+	exit
+fi
 check_install softether 1 "SoftEtherVPN is already installed" v
-apt-get update
-apt-get install build-essential dnsmasq -y
+print_info "Running pre checks..."
+apt-get update &> /dev/null
+apt-get --purge remove -y bind9* &> /dev/null
+apt-get install build-essential dnsmasq -y &> /dev/null
 mkdir /tmp/softether
+print_info "Downloading and installing SoftEther VPN Server...."
 MACHINE_TYPE=`uname -m`
 if [ ${MACHINE_TYPE} == 'x86_64' ]; then
-wget -O /tmp/softether/softether-vpnserver_x64.tar.gz http://www.softether-download.com/files/softether/v4.14-9529-beta-2015.02.02-tree/Linux/SoftEther_VPN_Server/64bit_-_Intel_x64_or_AMD64/softether-vpnserver-v4.14-9529-beta-2015.02.02-linux-x64-64bit.tar.gz
+wget -O /tmp/softether/softether-vpnserver_x64.tar.gz http://www.softether-download.com/files/softether/v4.14-9529-beta-2015.02.02-tree/Linux/SoftEther_VPN_Server/64bit_-_Intel_x64_or_AMD64/softether-vpnserver-v4.14-9529-beta-2015.02.02-linux-x64-64bit.tar.gz &> /dev/null
 wait
 cd /tmp/softether
 tar zxf softether-vpnserver_x64.tar.gz
 wait
 else
-wget -O /tmp/softether/softether-vpnserver_x86.tar.gz  http://www.softether-download.com/files/softether/v4.14-9529-beta-2015.02.02-tree/Linux/SoftEther_VPN_Server/32bit_-_Intel_x86/softether-vpnserver-v4.14-9529-beta-2015.02.02-linux-x86-32bit.tar.gz
+wget -O /tmp/softether/softether-vpnserver_x86.tar.gz  http://www.softether-download.com/files/softether/v4.14-9529-beta-2015.02.02-tree/Linux/SoftEther_VPN_Server/32bit_-_Intel_x86/softether-vpnserver-v4.14-9529-beta-2015.02.02-linux-x86-32bit.tar.gz &> /dev/null
 wait
 cd /tmp/softether
 tar zxf softether-vpnserver_x86.tar.gz
@@ -1154,7 +1377,7 @@ echo "1
 1
 1
 1
-" | make
+" | make &> /dev/null
 cd ..
 mv vpnserver /opt
 cd /opt/vpnserver/
@@ -1204,8 +1427,8 @@ exit 0
 EOM
 chmod 755 /etc/init.d/vpnserver
 mkdir /var/lock/subsys
-update-rc.d vpnserver defaults
-/etc/init.d/vpnserver start
+update-rc.d vpnserver defaults &> /dev/null
+/etc/init.d/vpnserver start &> /dev/null
 mkdir /tmp/.vpntemp
 touch /tmp/.vpntemp/vpnsetup.in
 /bin/cat <<"EOM" >/tmp/.vpntemp/vpnsetup.in
@@ -1226,29 +1449,29 @@ flush
 exit
 EOM
 CONFIG=/tmp/.vpntemp/vpnsetup.in
-echo "Please enter your softether admin password: "
-read softadmin
-echo "Please enter your IPSEC Secret: "
-read secret
-echo "Please enter your l2tp username: "
+print_info "Please enter your softether admin password: "
+read -s softadmin
+print_info "Please enter your IPSEC Secret: "
+read -s secret
+print_info "Please enter your l2tp username: "
 read username
-echo "Please enter your l2tp password: "
-read pass
-echo "Enter a custom port: "
+print_info "Please enter your l2tp password: "
+read -s pass
+print_info "Enter a custom port: "
 read port
 sed -i "s/ADMINPASSWORD/$softadmin/g" $CONFIG
 sed -i "s/USERNAME/$username/g" $CONFIG
 sed -i "s/TESTPASS/$pass/g" $CONFIG
 sed -i "s/TESTSECRET/$secret/g" $CONFIG
 sed -i "s/PORT/$port/g" $CONFIG
-/opt/vpnserver/vpncmd localhost:443 /SERVER /IN:$CONFIG
+/opt/vpnserver/vpncmd localhost:443 /SERVER /IN:$CONFIG &> /dev/null
 rm -r /tmp/.vpntemp/vpnsetup.in
 echo "interface=tap_soft" >> /etc/dnsmasq.conf
 echo "dhcp-range=tap_soft,192.168.7.50,192.168.7.60,12h" >> /etc/dnsmasq.conf
 echo "dhcp-option=tap_soft,3,192.168.7.1" >> /etc/dnsmasq.conf
 touch /etc/sysctl.d/ipv4_forwarding.conf
 echo "net.ipv4.ip_forward = 1" > /etc/sysctl.d/ipv4_forwarding.conf
-sysctl --system
+sysctl --system &> /dev/null
 iptables -t nat -A POSTROUTING -s 192.168.7.0/24 -j SNAT --to-source $(get_ip)
 iptables -A INPUT -p tcp --dport 443 -j ACCEPT
 iptables -A INPUT -p tcp --dport 992 -j ACCEPT
@@ -1265,10 +1488,15 @@ iptables -A INPUT -p udp --dport $port -j ACCEPT
 iptables -A INPUT -p tcp --dport $port -j ACCEPT
 echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
 echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
-apt-get install iptables-persistent -y
-/etc/init.d/vpnserver restart
-/etc/init.d/dnsmasq restart
+apt-get install iptables-persistent -y &> /dev/null
+sed -i "s|.*#user=.*|user=root|" /etc/dnsmasq.conf
+print_info "Restarting services..."
+/etc/init.d/vpnserver restart &> /dev/null
+/etc/init.d/dnsmasq restart &> /dev/null
 rm -rf /tmp/softether
+print_done "SoftEtherVPN has been installed"
+print_done "Please see the wiki https://github.com/eunas/essentials/wiki/SoftEtherVPN"
+print_done "For further information."
 }
 function install_remotedesktop {
 check_install x2goserver 1 "X2Go Server is already installed." v
@@ -1301,12 +1529,14 @@ print_info "Are you sure you want to continue ? [y/n]"
 read choice
 case $choice in
 y|Y|yes|Yes|YES)
-apt-get install fail2ban -y
+print_info "Installing fail2ban...."
+apt-get update &> /dev/null
+apt-get install fail2ban -y &> /dev/null
 wait
 cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
 sed -i "s|.*PermitRootLogin yes.*|PermitRootLogin no|"  /etc/ssh/sshd_config
 ##create user
-print_info "name for the new user:"
+print_info "Name for the new user:"
 read u
 useradd -d /home/$username $u
 wait
@@ -1315,15 +1545,17 @@ chmod 750 /home/$u
 chown -R $u /home/$u
 wait
 passwd $u
-print_info "User $username added with home dir /home/$username"
+print_info "User $username added with home dir /home/$u"
 ##change ssh port
 print_info "Choose a new ssh port"
 read p
 sed -i "s|.*Port.*|Port $p|"  /etc/ssh/sshd_config
-service fail2ban restart
+print_info "Restarting services...."
+service fail2ban restart &> /dev/null
 wait
-service ssh restart
+service ssh restart &> /dev/null
 wait
+print_done "Install complete."
 print_done "Please check that your new user can login with ssh before closing this session."
 break
 ;;
@@ -1342,7 +1574,7 @@ done
 check_sanity
 while true; do
 print_info "Choose what you want to install:"
-print_info "1) nginx 1.6.2"
+print_info "1) nginx"
 print_info "2) PHP-FPM 5.6.5"
 print_info "3) MySQL Server"
 print_info "4) MariaDB server"

@@ -1,3 +1,20 @@
+### 1.5 (2015-02-14)
+
+## Fixed:
+- Error in MySQL Server installation.
+- Dnsmasq unable to start on some OpenVZ systems.
+- Various tweaks and fixes.
+- Aria2 is no longer compiled on the server as low end systems would run out of memory in the process. It's now installed from the debian testing repository.
+
+##New:
+- Changed nginx repo from dotdeb to the official one.
+- You can now choose between nginx version 1.6.x or 1.7.x
+- nginx, PHP-FPM, MariaDB, Mysql, phpMyAdmin or any combination thereof, can now be installed in a single run.
+- secure_mysql_installation is no longer optional.
+- Supressed some output messages.
+- Updated Nyr's OpenVPN installer.
+- If apache2 is installed, remove it before installing nginx
+
 ### 1.4 (2015-02-07)
 
 ## Fixed:

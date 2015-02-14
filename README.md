@@ -12,7 +12,9 @@ Run the script and follow the assistant:
 
 ###Script content
 
-* nginx 1.6.2
+* nginx
+ * 1.6.x
+ * 1.7.x
 * PHP-FPM 5.6.5
 * MySQL Server
 * MariaDB server
@@ -25,7 +27,7 @@ Run the script and follow the assistant:
 * [SoftEtherVPS (Works on NAT)](https://github.com/eunas/essentials/wiki/SoftEtherVPN)
 * Squid3 Proxy Server
 * sSMTP server
-* Aria2 1.18.9 + webui
+* Aria2 + webui
 * [X2Go + xfce Desktop](https://github.com/eunas/essentials/wiki/Remote-Desktop)
 * Linux Dash server monitor
 * User Management
@@ -48,4 +50,4 @@ Parts of the files are scripts found on various sites on the internet, and eithe
 Tested on a [LowEndSpirit](http://lowendspirit.com/) VPS with 128 MB Ram
 
 ###Credits
-Xeoncross, mikel, Falko Timme, road warrior and many others.
+Xeoncross, mikel, Falko Timme, road warrior, Nyr and many others.
