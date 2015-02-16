@@ -1,3 +1,8 @@
+### 1.5.1 (2015-02-16)
+
+- SSH port is now optional in "Secure system"
+- New option for SoftEther VPN Server. Choose between "SecureNAT" or "Local Bridge" If Local Bridge is selected but TUN/TAP is not enabled, SecureNAT will be used instead.
+
 ### 1.5 (2015-02-14)
 
 ## Fixed:
