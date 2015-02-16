@@ -12,7 +12,7 @@ function check_sanity {
 
 	if [ ! -f /etc/debian_version ]
 	then
-		die "Distribution is not supported"
+		die "Distribution is not supported. Debian 7.x required.)"
 	fi
 }
 function check_install {
@@ -1181,15 +1181,26 @@ esac
 done
 }
 function remove_unneeded {
+    service sendmail stop
+    wait
+    service apache2 stop
+    wait
+    service bind9 stop
+    wait
 	# Some Debian have portmap installed. We don't need that.
 	apt-get --purge remove -y portmap
 
 	# Other packages that are quite common in standard OpenVZ templates.
 	apt-get --purge remove -y apache2*
+    wait
 	apt-get --purge remove -y bind9*
+    wait
 	apt-get --purge remove -y samba*
+    wait
 	apt-get --purge remove -y nscd
+    wait
     apt-get install sysv-rc-conf -y
+    wait
     sysv-rc-conf xinetd off
     sysv-rc-conf saslauthd off
 
@@ -1347,10 +1358,6 @@ python /home/speedtest-cli  --share
 fi
 }
 function install_softether {
-if [[ ! -e /dev/net/tun ]]; then
-	print_info "TUN/TAP is not available"
-	exit
-fi
 check_install softether 1 "SoftEtherVPN is already installed" v
 print_info "Running pre checks..."
 apt-get update &> /dev/null
@@ -1431,6 +1438,26 @@ update-rc.d vpnserver defaults &> /dev/null
 /etc/init.d/vpnserver start &> /dev/null
 mkdir /tmp/.vpntemp
 touch /tmp/.vpntemp/vpnsetup.in
+CONFIG=/tmp/.vpntemp/vpnsetup.in
+print_info "Please enter your softether admin password: "
+read -s softadmin
+print_info "Please enter your IPSEC Secret: "
+read -s secret
+print_info "Please enter your l2tp username: "
+read username
+print_info "Please enter your l2tp password: "
+read -s pass
+print_info "Enter a custom port: "
+read port
+print_info "Select method"
+print_info "1) SecureNAT"
+print_info "2) Local Bridge"
+read method
+if [[ $method = "2" ]] && [[ ! -e /dev/net/tun ]]; then
+	print_warn "TUN/TAP is not available, using SecureNAT instead."
+	method="1"
+fi
+if [[ $method = "2" ]] ; then
 /bin/cat <<"EOM" >/tmp/.vpntemp/vpnsetup.in
 ServerPasswordSet ADMINPASSWORD
 HubCreate VPN /PASSWORD:
@@ -1448,17 +1475,26 @@ listenercreate 500
 flush
 exit
 EOM
-CONFIG=/tmp/.vpntemp/vpnsetup.in
-print_info "Please enter your softether admin password: "
-read -s softadmin
-print_info "Please enter your IPSEC Secret: "
-read -s secret
-print_info "Please enter your l2tp username: "
-read username
-print_info "Please enter your l2tp password: "
-read -s pass
-print_info "Enter a custom port: "
-read port
+else
+/bin/cat <<"EOM" >/tmp/.vpntemp/vpnsetup.in
+ServerPasswordSet ADMINPASSWORD
+HubCreate VPN /PASSWORD:
+hubdelete default
+Hub VPN
+UserCreate USERNAME /GROUP:none /REALNAME:none /NOTE:none
+UserPasswordSet USERNAME /PASSWORD:TESTPASS
+SecureNatEnable
+ipsecenable /L2TP:yes /L2TPRAW:yes /ETHERIP:yes /PSK:TESTSECRET /DEFAULTHUB:VPN
+listenercreate PORT
+listenercreate 1701
+listenercreate 1723
+listenercreate 4500
+listenercreate 500
+flush
+exit
+EOM
+fi
+print_info "Continuing installation..."
 sed -i "s/ADMINPASSWORD/$softadmin/g" $CONFIG
 sed -i "s/USERNAME/$username/g" $CONFIG
 sed -i "s/TESTPASS/$pass/g" $CONFIG
@@ -1466,10 +1502,13 @@ sed -i "s/TESTSECRET/$secret/g" $CONFIG
 sed -i "s/PORT/$port/g" $CONFIG
 /opt/vpnserver/vpncmd localhost:443 /SERVER /IN:$CONFIG &> /dev/null
 rm -r /tmp/.vpntemp/vpnsetup.in
+if [[ method = "2" ]]
+then
 echo "interface=tap_soft" >> /etc/dnsmasq.conf
 echo "dhcp-range=tap_soft,192.168.7.50,192.168.7.60,12h" >> /etc/dnsmasq.conf
 echo "dhcp-option=tap_soft,3,192.168.7.1" >> /etc/dnsmasq.conf
 touch /etc/sysctl.d/ipv4_forwarding.conf
+fi
 echo "net.ipv4.ip_forward = 1" > /etc/sysctl.d/ipv4_forwarding.conf
 sysctl --system &> /dev/null
 iptables -t nat -A POSTROUTING -s 192.168.7.0/24 -j SNAT --to-source $(get_ip)
@@ -1486,6 +1525,7 @@ iptables -A INPUT -p tcp --dport 1723 -j ACCEPT
 iptables -A INPUT -p udp --dport 1723 -j ACCEPT
 iptables -A INPUT -p udp --dport $port -j ACCEPT
 iptables -A INPUT -p tcp --dport $port -j ACCEPT
+if [[ $method = "2" ]] ; then
 echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
 echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
 apt-get install iptables-persistent -y &> /dev/null
@@ -1493,6 +1533,10 @@ sed -i "s|.*#user=.*|user=root|" /etc/dnsmasq.conf
 print_info "Restarting services..."
 /etc/init.d/vpnserver restart &> /dev/null
 /etc/init.d/dnsmasq restart &> /dev/null
+else
+print_info "Restarting services..."
+/etc/init.d/vpnserver restart &> /dev/null
+fi
 rm -rf /tmp/softether
 print_done "SoftEtherVPN has been installed"
 print_done "Please see the wiki https://github.com/eunas/essentials/wiki/SoftEtherVPN"
@@ -1521,7 +1565,7 @@ print_done "X2Go client can be downloaded from"
 print_done "http://wiki.x2go.org/doku.php/download:start"
 }
 function secure_system {
-check_install fail2ban 1 "fail2ban is already installed." v
+check_install fail2ban 1 "fail2ban is already installed."
 while true; do
 print_info "This will install fail2ban, change the ssh port,"
 print_info "permit ssh root login and create a new user"
@@ -1535,7 +1579,6 @@ apt-get install fail2ban -y &> /dev/null
 wait
 cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
 sed -i "s|.*PermitRootLogin yes.*|PermitRootLogin no|"  /etc/ssh/sshd_config
-##create user
 print_info "Name for the new user:"
 read u
 useradd -d /home/$username $u
@@ -1545,11 +1588,12 @@ chmod 750 /home/$u
 chown -R $u /home/$u
 wait
 passwd $u
-print_info "User $username added with home dir /home/$u"
-##change ssh port
-print_info "Choose a new ssh port"
+print_done "User $username added with home dir /home/$u"
+print_info "Choose a new ssh port (Press enter to skip)"
 read p
+if [[ -n "$p" ]] ; then
 sed -i "s|.*Port.*|Port $p|"  /etc/ssh/sshd_config
+fi
 print_info "Restarting services...."
 service fail2ban restart &> /dev/null
 wait
