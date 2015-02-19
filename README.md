@@ -12,9 +12,10 @@ Run the script and follow the assistant:
 
 ###Script content
 
-* nginx
- * 1.6.x
- * 1.7.x
+* Webserver
+ * nginx 1.6.x
+ * nginx 1.7.x
+ * lighttpd 1.4.35
 * PHP-FPM 5.6.5
 * MySQL Server
 * MariaDB server

@@ -1,3 +1,18 @@
+### 1.5.2 (2015-02-19)
+
+- Re-engineered ssmtp install.
+- Removed additional OS checks in openVPN install. (We already verified that.)
+- Replaced php5-mysql with php5-mysqlnd for better performance.
+- Added lighttpd 1.4.35 to webserver install.
+- Updated NYR's OpenVPN script
+- Fixed duplicate in php.ini
+- Other minor stuff.
+
+### 1.5.1 (2015-02-16)
+
+- SSH port is now optional in "Secure system"
+- New option for SoftEther VPN Server. Choose between "SecureNAT" or "Local Bridge" If Local Bridge is selected but TUN/TAP is not enabled, SecureNAT will be used instead.
+
 ### 1.5 (2015-02-14)
 
 ## Fixed:

@@ -88,12 +88,12 @@ if [ ! -f "$file" ]
 then
 touch /etc/apt/sources.list.d/nginx.list
 fi
-if [ $nginx = "1" ]
+if [ $web = "1" ]
 then
 >/etc/apt/sources.list.d/nginx.list
 echo "deb http://nginx.org/packages/debian/ wheezy nginx" >> /etc/apt/sources.list.d/nginx.list
 echo "deb-src http://nginx.org/packages/debian/ wheezy nginx" >> /etc/apt/sources.list.d/nginx.list
-elif [ $nginx = "2" ]
+elif [ $web = "2" ]
 then
 >/etc/apt/sources.list.d/nginx.list
 echo "deb http://nginx.org/packages/mainline/debian/ wheezy nginx" >> /etc/apt/sources.list.d/nginx.list
@@ -134,12 +134,17 @@ service mysql restart
 ############################################################
 # Apps
 ############################################################
-function install_nginx {
-    check_install nginx 1 "ngninx is already installed" v
-    print_info "Please choose what version of nginx you want to install"
+function install_webserver  {
+print_info "Please choose a webserver to install"
     print_info "1) nginx 1.6.2"
-    print_info "2) nginx 1.7.9"
-    read nginx
+    print_info "2) nginx 1.7.10"
+    print_info "3) lighttpd 1.4.35"
+    print_info "e) Exit"
+    read web
+    if [[ $web = "e" ]]
+    then
+    exit 1
+    fi
     print_info "Install PHP-FPM ? (y/n)"
     read php
     print_info "Install MariaDB Server ? (y/n)"
@@ -156,6 +161,19 @@ function install_nginx {
     fi
     print_info "Enter Domain, leave blank to use IP"
     read d
+    if [[ $web = "3" ]]
+    then
+    install_lighttpd
+    else
+    install_nginx
+    fi
+}
+function install_nginx {
+    check_install nginx 1 "ngninx is already installed" v
+    if which lighttpd >/dev/null; then
+    print_warn "lighttpd is already installed. Aborting"
+    exit 1
+    fi
     if which apache2 >/dev/null; then
     print_info "Apache2 detected, please wait while we remove it..."
     service apache2 stop &> /dev/null
@@ -253,24 +271,89 @@ then
 install_phpmyadmin
 fi
 }
+function install_lighttpd  {
+check_install nginx 1 "nginx is already installed. Aborting"
+print_info "Installing lighttpd...."
+if which apache2 >/dev/null; then
+    print_info "Apache2 detected, please wait while we remove it..."
+    service apache2 stop &> /dev/null
+    apt-get --purge remove apache2 -y &> /dev/null
+    fi
+apt-get build-dep lighttpd -y &>/dev/null
+apt-get -f install libterm-readline-perl-perl -y &> /dev/null
+MACHINE_TYPE=`uname -m`
+if [ ${MACHINE_TYPE} == 'x86_64' ]; then
+wget -O /tmp/ligttpd.deb http://download.opensuse.org/repositories/server:/http/Debian_7.0/amd64/lighttpd_1.4.35-0.1_amd64.deb &> /dev/null
+else
+wget -O /tmp/ligttpd.deb http://download.opensuse.org/repositories/server:/http/Debian_7.0/i386/lighttpd_1.4.35-0.1_i386.deb &> /dev/null
+fi
+dpkg -i /tmp/ligttpd.deb  &> /dev/null
+wait
+rm /tmp/ligttpd.deb
+sed -i "s|.*"mod_rewrite".*|        \"mod_rewrite\",|" /etc/lighttpd/lighttpd.conf
+service lighttpd restart &> /dev/nullservice lighttpd restart &> /dev/null
+print_done "lighttpd successfully installed."
+wait
+if [[ $php = "y" ]]
+then
+install_php
+fi
+if [[ $db = "y" ]]
+then
+install_mariadb
+fi
+if [[ $db1 = "y" ]]
+then
+install_mysql
+fi
+if [[ $phpadm = "y" ]]
+then
+install_phpmyadmin
+fi
+}
 function install_php {
+    if [ -x //usr/sbin/nginx ] || [ -x /usr/sbin/lighttpd ]; then
     check_install php5-fpm 1 "php5-fpm is already installed" v
     dotdeb_php_repo
-    DEBIAN_FRONTEND=noninteractive apt-get install php5-fpm php5-common php5-mysql php5-sqlite php5-mcrypt php5-curl curl php5-cli php5-gd -y &> /dev/null
-    wait
-    sed -i "s|.*cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
+    DEBIAN_FRONTEND=noninteractive apt-get install php5-fpm php5-common php5-mysqlnd php5-sqlite php5-mcrypt php5-curl curl php5-cli php5-gd -y &> /dev/null
+    sed -i "s|.*;cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
     sed -i "s|.*upload_max_filesize = 2M.*|upload_max_filesize = 128M|" /etc/php5/fpm/php.ini
     sed -i "s|.*post_max_size = 8M.*|post_max_size = 128M|" /etc/php5/fpm/php.ini
     sed -i "s|.*reload signal USR2.*|        #reload signal USR2|" /etc/init/php5-fpm.conf
-    service php5-fpm start
     wait
+    if which nginx >/dev/null; then
     touch /usr/share/nginx/html/info.php
 /bin/cat <<"EOM" >/usr/share/nginx/html/info.php
     <?php
     phpinfo();
     ?>
 EOM
+    else
+    >/etc/lighttpd/conf-available/15-fastcgi-php.conf
+/bin/cat <<"EOM" >/etc/lighttpd/conf-available/15-fastcgi-php.conf
+fastcgi.server += ( ".php" =>
+        ((
+                "socket" => "/var/run/php5-fpm.sock",
+                "broken-scriptfilename" => "enable"
+        ))
+)
+EOM
+    lighttpd-enable-mod fastcgi
+    lighttpd-enable-mod fastcgi-php
+    /etc/init.d/lighttpd force-reload
+touch /var/www/info.php
+/bin/cat <<"EOM" >/var/www/info.php
+    <?php
+    phpinfo();
+    ?>
+EOM
+    fi
+    service php5-fpm start
     print_done "PHP-FPM 5.6 successfully installed."
+else
+print_warn "No webserver installed. Aborting"
+exit 1
+fi
 }
 function install_mysql {
 check_install mysql-server 1 "MySQL is already installed"
@@ -300,7 +383,7 @@ print_done "MariaDB successfully installed."
 }
 function install_phpmyadmin {
 check_install phpmyadmin 1 "phpMyAdmin is already installed" v
-check_install nginx 0 "Please install a webserver first"
+if [ -x //usr/sbin/nginx ] || [ -x /usr/sbin/lighttpd ]; then
 check_install php5-fpm 0 "phpMyAdmin requires php, please install it"
 if ((! $(ps -ef | grep -v grep | grep mysql | wc -l) > 0 ))
 then
@@ -308,21 +391,32 @@ then
         exit 1
 
 fi
-print_info "Installing phpMyAdmin"
+print_info "Configuring phpMyAdmin"
 print_info "Enter password of the MySQL root user"
 read -s root_pw
 print_info "Provide a password for phpmyadmin to register with the database server"
 read -s pm_passwd
+print_info "Installing phpMyAdmin..."
 apt-get install debconf-utils -y &> /dev/null
+if which nginx >/dev/null; then
 echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect none" | debconf-set-selections
+else
+echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect lighttpd lighttpd" | debconf-set-selections
+fi
 echo "phpmyadmin phpmyadmin/dbconfig-install boolean true" | debconf-set-selections
 echo "phpmyadmin phpmyadmin/mysql/admin-pass password $root_pw" | debconf-set-selections
 echo "phpmyadmin phpmyadmin/mysql/app-pass password $pm_passwd" | debconf-set-selections
 echo "phpmyadmin phpmyadmin/app-password-confirm password $pm_passwd" | debconf-set-selections
 apt-get install phpmyadmin -y &>/dev/null
 wait
+if which nginx >/dev/null; then
 ln -s /usr/share/phpmyadmin/ /usr/share/nginx/html
+fi
 print_done "phpMyAdmin successfully installed."
+else
+print_warn "No webserver installed. Aborting"
+exit 1
+fi
 }
 function install_pureftpd {
 check_install pure-ftpd 1 "Pure-ftpd is already installed." v
@@ -523,12 +617,6 @@ exit
 fi
 }
 function install_openvpn {
-if [[ ! -e /dev/net/tun ]]; then
-	echo "TUN/TAP is not available"
-	exit
-fi
-
-
 if grep -q "CentOS release 5" "/etc/redhat-release"; then
 	echo "CentOS 5 is too old and not supported"
 	exit
@@ -546,7 +634,6 @@ else
 	echo "Looks like you aren't running this installer on a Debian, Ubuntu or CentOS system"
 	exit
 fi
-
 newclient () {
 	# Generates the client.ovpn
 	cp /usr/share/doc/openvpn*/*ample*/sample-config-files/client.conf ~/$1.ovpn
@@ -641,7 +728,6 @@ if [[ -e /etc/openvpn/server.conf ]]; then
 				fi
 				rm -rf /etc/openvpn
 				rm -rf /usr/share/doc/openvpn*
-				sed -i '/--dport 53 -j REDIRECT --to-port/d' $RCLOCAL
 				sed -i '/iptables -t nat -A POSTROUTING -s 10.8.0.0/d' $RCLOCAL
 				echo ""
 				echo "OpenVPN removed!"
@@ -771,8 +857,7 @@ else
 	esac
 	# Listen at port 53 too if user wants that
 	if [[ "$ALTPORT" = 'y' ]]; then
-		iptables -t nat -A PREROUTING -p udp -d $IP --dport 53 -j REDIRECT --to-port $PORT
-		sed -i "1 a\iptables -t nat -A PREROUTING -p udp -d $IP --dport 53 -j REDIRECT --to-port $PORT" $RCLOCAL
+		sed -i '/port 1194/a port 53' server.conf
 	fi
 	# Enable net.ipv4.ip_forward for the system
 	if [[ "$OS" = 'debian' ]]; then
@@ -958,13 +1043,14 @@ print_info ""
 print_info "----------------------------------------------------"
 print_info ""
 }
-
 function configure_ssmtp {
-function install_ssmtp {
 while true; do
-print_info "Choose mail carrier:"
-print_info "1) Mandrill"
-print_info "2) Gmail"
+print_info "ssmtp needs to be configured to use an external smtp server."
+print_info "Remember to set it up for PHP if you need that"
+print_info "Configure  ssmtp:"
+print_info "1) Setup using Mandrill smtp"
+print_info "2) Setup using Gmail smtp"
+print_info "3) Configure for PHP"
 print_info "e) Exit"
 read choice
 case $choice in
@@ -976,7 +1062,13 @@ read mhost
 print_info "Your mandril login mail"
 read mlogin
 print_info "mandril api key"
-read mapikey
+read -s mapikey
+if [[ ! -f "/etc/ssmtp/ssmtp.conf" ]] ;
+then
+touch /etc/ssmtp/ssmtp.conf
+else
+>/etc/ssmtp/ssmtp.conf
+fi
 /bin/cat <<EOM >/etc/ssmtp/ssmtp.conf
 # ---- basic config
 root=$mmail
@@ -989,11 +1081,16 @@ AuthUser=$mlogin
 mailhub=smtp.mandrillapp.com:587
 AuthPass=$mapikey
 EOM
+if [[ ! -f "/etc/ssmtp/revaliases" ]] ;
+then
+touch /etc/ssmtp/revaliases
+else
+>/etc/ssmtp/revaliases
+fi
 /bin/cat <<EOM >/etc/ssmtp/revaliases
 root:$mmail:smtp.mandrillapp.com:587
 EOM
-sed -i "s|.*sendmail_path.*|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/fpm/php.ini
-print_done "ssmtp successfully configured."
+print_done "ssmtp successfully installed."
 break
 ;;
 2)
@@ -1004,7 +1101,13 @@ read ghost
 print_info "Gmail address"
 read glogin
 print_info "Gmail password"
-read gapikey
+read -s gapikey
+if [[ ! -f "/etc/ssmtp/ssmtp.conf" ]] ;
+then
+touch /etc/ssmtp/ssmtp.conf
+else
+>/etc/ssmtp/ssmtp.conf
+fi
 /bin/cat <<EOM >/etc/ssmtp/ssmtp.conf
 # ---- basic config
 root=$gmail
@@ -1018,11 +1121,22 @@ AuthUser=$glogin
 mailhub=smtp.gmail.com:587
 AuthPass=$gapikey
 EOM
+if [[ ! -f "/etc/ssmtp/revaliases" ]] ;
+then
+touch /etc/ssmtp/revaliases
+else
+>/etc/ssmtp/revaliases
+fi
 /bin/cat <<EOM >/etc/ssmtp/revaliases
 root:$gmail:smtp.gmail.com:587
 EOM
+print_done "ssmtp successfully installed."
+break
+;;
+3)
+check_install php5-fpm 0 "PHP is not installed."
 sed -i "s|.*sendmail_path.*|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/fpm/php.ini
-print_done"ssmtp successfully configured."
+print_done "ssmtp successfully configured."
 break
 ;;
 e)
@@ -1034,30 +1148,15 @@ break
 esac
 done
 }
-while true; do
-print_info "1) Install ssmpt"
-print_info "2) Configure ssmtp"
-print_info "e) Exit"
-read choice
-case $choice in
-1)
-    check_install ssmtp 1 "ssmtp already installed" v
-    DEBIAN_FRONTEND=noninteractive apt-get install -y ssmtp
-    print_done "ssmtp successfully installed."
-break
-;;
-2)
-install_ssmtp
-break
-;;
-e)
-break
-;;
-     *)
-     print_warn "That is not a valid choice, try a number from 1 to 20."
-     ;;
-esac
-done
+function install_ssmtp {
+if which ssmtp >/dev/null; then
+configure_ssmtp
+else
+print_info "Installing ssmtp..."
+DEBIAN_FRONTEND=noninteractive apt-get install -y ssmtp &> /dev/null
+wait
+configure_ssmtp
+fi
 }
 function show_os_arch_version {
 	ARCH=$(uname -m | sed 's/x86_//;s/i[3-6]86/32/')
@@ -1618,7 +1717,7 @@ done
 check_sanity
 while true; do
 print_info "Choose what you want to install:"
-print_info "1) nginx"
+print_info "1) Webserver"
 print_info "2) PHP-FPM 5.6.5"
 print_info "3) MySQL Server"
 print_info "4) MariaDB server"
@@ -1641,7 +1740,7 @@ print_info "e) Exit"
 read choice
 case $choice in
 1)
-install_nginx
+install_webserver
 break
 ;;
 2)
@@ -1689,7 +1788,7 @@ install_squid3
 break
 ;;
 13)
-configure_ssmtp
+install_ssmtp
 break
 ;;
 14)
