@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 ### 1.5.2 (2015-02-19)
 
 - Re-engineered ssmtp install.
@@ -9,8 +8,6 @@
 - Fixed duplicate in php.ini
 - Other minor stuff.
 
-=======
->>>>>>> 28687c740602968773b009d4f8f386941d910dd6
 ### 1.5.1 (2015-02-16)
 
 - SSH port is now optional in "Secure system"
