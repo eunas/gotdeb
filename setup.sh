@@ -52,6 +52,9 @@ function get_ip {
 IP=$(ifconfig | grep 'inet addr:' | grep -v inet6 | grep -vE '127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut -d: -f2 | awk '{ print $1}' | head -1)
 echo "$IP"
 }
+function get_external_ip {
+curl http://ipecho.net/plain; echo;
+}
 function get_version {
 version=$(dpkg -s $1 | grep 'Version')
 print_info "$version"
@@ -59,8 +62,8 @@ print_info "$version"
 function update_upgrade {
 	# Run through the apt-get update/upgrade first.
 	# This should be done before we try to install any package
-	apt-get -q -y update
-	apt-get -q -y upgrade
+    print_info "Updating system..."
+	apt-get update && apt-get upgrade -y &> /dev/null
 
 	# also remove the orphaned stuff
 	apt-get -q -y autoremove
@@ -129,51 +132,78 @@ mysql -u root -p"$dbpass" -e "FLUSH PRIVILEGES"
 sed -i '/skip-external-locking/ a\innodb=OFF' /etc/mysql/my.cnf
 sed -i '/innodb=OFF/ a\default-storage-engine=MyISAM' /etc/mysql/my.cnf
 sed -i "s|.*default_storage_engine.*|#|" /etc/mysql/my.cnf
-service mysql restart
+print_info "Restarting services..."
+service mysql restart &> /dev/null
+}
+function rand {
+rand=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 4 | head -n 1)
+echo "$rand"
+}
+function choice_menu {
+    print_info "Install PHP-FPM ? (y/n)"
+    read -s -n 1 php
+    if [[ $php != [YyNn] ]];
+    then
+    print_warn "Error in input, try again"
+    install_webserver
+    fi
+
+    print_info "Install MariaDB Server ? (y/n)"
+    read -s -n 1 db
+    if [[ $db != [YyNn] ]];
+    then
+    print_warn "Error in input, try again"
+    install_webserver
+    fi
+
+    if [[ $db = "n" ]]
+    then
+    print_info "Install MySQL Server ? (y/n)"
+    read -s -n 1 db1
+    if [[ $db1 != [YyNn] ]];
+    then
+    print_warn "Error in input1, try again"
+    install_webserver
+    fi
+    fi
+
+    if [[ $php = "y" ]] && [[ $db = "y" ]] || [[ $db1 = "y" ]]
+    then
+    print_info "Install phpMyAdmin (y/n)"
+    read -s -n 1 phpadm
+    if [[ $phpadm != [YyNn] ]];
+    then
+    print_warn "Error in input, try again"
+    install_webserver
+    fi
+    fi
+
+    if [[ $db = "y" ]] || [[ $db1 = "y" ]]
+    then
+    print_info "Enter a password for the MySQL root user:"
+    read -s dbpass
+    if [[ -z $dbpass ]];
+    then
+    echo ""
+    print_warn "MySql password can not be blank !"
+    echo ""
+    install_webserver
+    fi
+    fi
+    print_info "Enter Domain, leave blank to use IP"
+    read d
 }
 ############################################################
 # Apps
 ############################################################
-function install_webserver  {
-print_info "Please choose a webserver to install"
-    print_info "1) nginx 1.6.2"
-    print_info "2) nginx 1.7.10"
-    print_info "3) lighttpd 1.4.35"
-    print_info "e) Exit"
-    read web
-    if [[ $web = "e" ]]
-    then
-    exit 1
-    fi
-    print_info "Install PHP-FPM ? (y/n)"
-    read php
-    print_info "Install MariaDB Server ? (y/n)"
-    read db
-    if [[ $db = "n" ]]
-    then
-    print_info "Install MySQL Server ? (y/n)"
-    read db1
-    fi
-    if [[ $php = "y" ]] && [[ $db = "y" ]] || [[ $db1 = "y" ]]
-    then
-    print_info "Install phpMyAdmin (y/n)"
-    read phpadm
-    fi
-    print_info "Enter Domain, leave blank to use IP"
-    read d
-    if [[ $web = "3" ]]
-    then
-    install_lighttpd
-    else
-    install_nginx
-    fi
-}
 function install_nginx {
     check_install nginx 1 "ngninx is already installed" v
     if which lighttpd >/dev/null; then
     print_warn "lighttpd is already installed. Aborting"
     exit 1
     fi
+    choice_menu
+    apt-get install curl -y &> /dev/null
     if which apache2 >/dev/null; then
     print_info "Apache2 detected, please wait while we remove it..."
     service apache2 stop &> /dev/null
@@ -238,9 +268,9 @@ function install_nginx {
 }
 EOM
 if [ -z "$d" ] ; then
-d="$(get_ip)"
+d="$(get_external_ip)"
 fi
-sed -i "s|.*server_name.*|        server_name "$(get_ip)";|" /etc/nginx/conf.d/default.conf
+sed -i "s|.*server_name.*|        server_name "$d";|" /etc/nginx/conf.d/default.conf
 sed -i "s|.*user.*nginx.*|user www-data;|" /etc/nginx/nginx.conf
 cpu_count=`grep -c ^processor /proc/cpuinfo`
 sed -i "s|.*worker_processes.*[0-9].*|worker_processes $cpu_count;|" /etc/nginx/nginx.conf
@@ -273,13 +303,18 @@ fi
 }
 function install_lighttpd  {
 check_install nginx 1 "nginx is already installed. Aborting"
+if which lighttpd >/dev/null; then
+print_warn "lighttpd is already installed. Aborting"
+fi
+choice_menu
 print_info "Installing lighttpd...."
 if which apache2 >/dev/null; then
     print_info "Apache2 detected, please wait while we remove it..."
     service apache2 stop &> /dev/null
     apt-get --purge remove apache2 -y &> /dev/null
     fi
-apt-get build-dep lighttpd -y &>/dev/null
+DEBIAN_FRONTEND=noninteractive apt-get upgrade -y &> /dev/null
+apt-get build-dep lighttpd -y &> /dev/null
 apt-get -f install libterm-readline-perl-perl -y &> /dev/null
 MACHINE_TYPE=`uname -m`
 if [ ${MACHINE_TYPE} == 'x86_64' ]; then
@@ -291,7 +326,7 @@ dpkg -i /tmp/ligttpd.deb  &> /dev/null
 wait
 rm /tmp/ligttpd.deb
 sed -i "s|.*"mod_rewrite".*|        \"mod_rewrite\",|" /etc/lighttpd/lighttpd.conf
-service lighttpd restart &> /dev/nullservice lighttpd restart &> /dev/null
+service lighttpd restart &> /dev/null
 print_done "lighttpd successfully installed."
 wait
 if [[ $php = "y" ]]
@@ -300,11 +335,11 @@ install_php
 fi
 if [[ $db = "y" ]]
 then
-install_mariadb
+install_mariadb $dbpass
 fi
 if [[ $db1 = "y" ]]
 then
-install_mysql
+install_mysql $dbpass
 fi
 if [[ $phpadm = "y" ]]
 then
@@ -312,7 +347,7 @@ install_phpmyadmin
 fi
 }
 function install_php {
-    if [ -x //usr/sbin/nginx ] || [ -x /usr/sbin/lighttpd ]; then
+    if [ -x /usr/sbin/nginx ] || [ -x /usr/sbin/lighttpd ]; then
     check_install php5-fpm 1 "php5-fpm is already installed" v
     dotdeb_php_repo
     DEBIAN_FRONTEND=noninteractive apt-get install php5-fpm php5-common php5-mysqlnd php5-sqlite php5-mcrypt php5-curl curl php5-cli php5-gd -y &> /dev/null
@@ -338,9 +373,9 @@ fastcgi.server += ( ".php" =>
         ))
 )
 EOM
-    lighttpd-enable-mod fastcgi
-    lighttpd-enable-mod fastcgi-php
-    /etc/init.d/lighttpd force-reload
+    lighttpd-enable-mod fastcgi &> /dev/null
+    lighttpd-enable-mod fastcgi-php &> /dev/null
+    service lighttpd restart  &> /dev/null
 touch /var/www/info.php
 /bin/cat <<"EOM" >/var/www/info.php
     <?php
@@ -358,8 +393,11 @@ fi
 function install_mysql {
 check_install mysql-server 1 "MySQL is already installed"
 check_install mariadb-server 1 "MariaDB is the current DB server. Can't install MySQL"
+if [ -z "$dbpass" ];
+then
 print_info "Enter a password for the mysql root user:"
 read -s dbpass
+fi
 print_info "Installing MySql Server, please wait..."
 apt-get update &> /dev/null
 wait
@@ -371,10 +409,15 @@ print_done "MySQL successfully installed."
 function install_mariadb {
 check_install mysql-server  1 "MySQL is the current DB server. Can't install Mariadb"
 check_install mariadb-server 1 "MariaDB Server is already installed"
+if [ -z "$dbpass" ];
+then
 print_info "Enter a password for the mysql root user:"
 read -s dbpass
+fi
 print_info "Installing MariaDB Server, please wait...";
 mariadb_repo
+DEBIAN_FRONTEND=noninteractive apt-get upgrade -y &> /dev/null
+wait
 DEBIAN_FRONTEND=noninteractive apt-get -y install python-software-properties mariadb-server mariadb-client &> /dev/null
 wait
 mysql_opt $dbpass
@@ -383,7 +426,7 @@ print_done "MariaDB successfully installed."
 }
 function install_phpmyadmin {
 check_install phpmyadmin 1 "phpMyAdmin is already installed" v
-if [ -x //usr/sbin/nginx ] || [ -x /usr/sbin/lighttpd ]; then
+if [ -x /usr/sbin/nginx ] || [ -x /usr/sbin/lighttpd ]; then
 check_install php5-fpm 0 "phpMyAdmin requires php, please install it"
 if ((! $(ps -ef | grep -v grep | grep mysql | wc -l) > 0 ))
 then
@@ -391,32 +434,57 @@ then
         exit 1
 
 fi
-print_info "Configuring phpMyAdmin"
-print_info "Enter password of the MySQL root user"
-read -s root_pw
-print_info "Provide a password for phpmyadmin to register with the database server"
-read -s pm_passwd
 print_info "Installing phpMyAdmin..."
-apt-get install debconf-utils -y &> /dev/null
-if which nginx >/dev/null; then
-echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect none" | debconf-set-selections
-else
-echo "phpmyadmin phpmyadmin/reconfigure-webserver multiselect lighttpd lighttpd" | debconf-set-selections
-fi
-echo "phpmyadmin phpmyadmin/dbconfig-install boolean true" | debconf-set-selections
-echo "phpmyadmin phpmyadmin/mysql/admin-pass password $root_pw" | debconf-set-selections
-echo "phpmyadmin phpmyadmin/mysql/app-pass password $pm_passwd" | debconf-set-selections
-echo "phpmyadmin phpmyadmin/app-password-confirm password $pm_passwd" | debconf-set-selections
-apt-get install phpmyadmin -y &>/dev/null
+apt-get install unzip -y &> /dev/null
+wget -O /tmp/phpmyadmin.zip https://github.com/phpmyadmin/phpmyadmin/archive/STABLE.zip &>/dev/null
 wait
-if which nginx >/dev/null; then
+unzip /tmp/phpmyadmin.zip -d /tmp &> /dev/null
+wait
+rm /tmp/phpmyadmin.zip
+mkdir /usr/share/phpmyadmin
+mv /tmp/phpmyadmin-STABLE/* /usr/share/phpmyadmin
+chown -R www-data:www-data /usr/share/phpmyadmin
+cp /usr/share/phpmyadmin/config.sample.inc.php  /usr/share/phpmyadmin/config.inc.php
+sed -i "s|.*blowfish_secret.*|\$cfg['blowfish_secret'] = '$(rand)';|" /usr/share/phpmyadmin/config.inc.php
+sed -i '/.*blowfish_secret.*/ a\$cfg['PmaNoRelation_DisableWarning'] = true;' /usr/share/phpmyadmin/config.inc.php
+if which lighttpd >/dev/null; then
+touch /etc/lighttpd/conf-enabled/phpmyadmin.conf
+echo 'alias.url += ( "/phpmyadmin" => "/usr/share/phpmyadmin/" )' >> /etc/lighttpd/conf-enabled/phpmyadmin.conf
+service lighttpd restart &> /dev/null
+else
 ln -s /usr/share/phpmyadmin/ /usr/share/nginx/html
+service nginx restart
 fi
 print_done "phpMyAdmin successfully installed."
 else
 print_warn "No webserver installed. Aborting"
 exit 1
 fi
+}
+function install_webserver  {
+print_info "Please choose a webserver to install"
+    print_info "1) nginx 1.6.2"
+    print_info "2) nginx 1.7.10"
+    print_info "3) lighttpd 1.4.35"
+    print_info "e) Exit"
+    read -s -n 1 web
+    if [[ $web != [Ee123] ]];
+    then
+    print_warn "Invalid choice, try again"
+    install_webserver
+    fi
+    if [[ $web = [12] ]];
+    then
+    install_nginx
+    fi
+    if [[ $web = "3" ]]
+    then
+    install_lighttpd
+    fi
+    if [[ $web = "e" ]]
+    then
+    exit 1
+    fi
 }
 function install_pureftpd {
 check_install pure-ftpd 1 "Pure-ftpd is already installed." v
@@ -951,7 +1019,7 @@ elif [ "$b" == "venet0:0" ]; then
 fi
 
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get -y install apache2-utils squid3
+DEBIAN_FRONTEND=noninteractive apt-get -y install apache2-utils squid3 &> /dev/null
 
 rm /etc/squid3/squid.conf
 
@@ -1037,7 +1105,7 @@ print_info ""
 print_info "----------------------------------------------------"
 print_info "Squid proxy server set up has been completed."
 print_info ""
-print_info "You can access your proxy server at $ip"
+print_info "You can access your proxy server at $(get_external_ip)"
 print_info "on port $sp with user name $u"
 print_info ""
 print_info "----------------------------------------------------"
@@ -1336,7 +1404,7 @@ if which aria2c >/dev/null; then
 print_warn "Aria2 is already installed."
 exit 1
 fi
-check_install nginx 0 "Please install nginx"
+if [ -x /usr/sbin/nginx ] || [ -x /usr/sbin/lighttpd ]; then
 check_install php5-fpm 0 "Please install PHP"
 print_info "Installing Aria2 (This might take some time, please be patient...)"
 file="/etc/apt/sources.list.d/debian-testing.list"
@@ -1348,7 +1416,7 @@ echo "deb-src http://http.us.debian.org/debian testing main non-free contrib" >>
 apt-get update &> /dev/null
 wait
 fi
-DEBIAN_FRONTEND=noninteractive apt-get install aria2 git -y
+DEBIAN_FRONTEND=noninteractive apt-get install aria2 git -y &> /dev/null
 wait
 rm /etc/apt/sources.list.d/debian-testing.list
 apt-get update
@@ -1384,6 +1452,7 @@ max-tries=50
 EOM
 print_info "Enter a secret token"
 read -s secret
+print_info "Configuring Aria2..."
 touch /etc/init.d/aria2
 /bin/cat <<"EOM" >/etc/init.d/aria2
 #! /bin/sh
@@ -1428,13 +1497,21 @@ EOM
 sed -i "s|.*aria2c --daemon=true --enable-rpc --rpc-listen-all --rpc-secret=secret.*|aria2c --daemon=true --enable-rpc --rpc-listen-all --rpc-secret=$secret -D --conf-path=/usr/share/aria2/aria2.conf;|" /etc/init.d/aria2
 chmod +x /etc/init.d/aria2
 update-rc.d aria2 defaults &> /dev/null
+if which nginx >/dev/null;
+then
 git clone https://github.com/ziahamza/webui-aria2.git /usr/share/nginx/html/aria2 &> /dev/null
+else
+git clone https://github.com/ziahamza/webui-aria2.git /var/www/aria2 &> /dev/null
+fi
 service aria2 start &> /dev/null
 wait
 rm -rf /tmp/aria2
 print_done "Aria2 has been installed"
-print_done "Access it at http://$(get_ip)/aria2"
+print_done "Access it at http://$(get_external_ip)/aria2"
 print_done "Your secret token is $secret"
+else
+print_warn "No webserver installed. Aborting"
+fi
 }
 function get_linuxdash {
 check_install nginx 0 "Please install nginx"
@@ -1442,7 +1519,7 @@ check_install php5-fpm 0 "Please install PHP"
 apt-get install git -y
 mkdir /usr/share/nginx/html/monitor
 git clone https://github.com/afaqurk/linux-dash /usr/share/nginx/html/monitor
-print_done "You can view the monitor at http://$(get_ip)/monitor"
+print_done "You can view the monitor at http://$(get_external_ip)/monitor"
 }
 function run_speedtest {
 file="/home/speedtest-cli"
@@ -1711,6 +1788,155 @@ break
 esac
 done
 }
+function setup_observium {
+while true; do
+print_info "Choose what you want to install:"
+print_info "1) Install Server"
+print_info "2) Install Client"
+print_info "e) Exit"
+read choice
+case $choice in
+1)
+install_observium_server
+break
+;;
+2)
+install_observium_client
+break
+;;
+e|E)
+break
+;;
+     *)
+     echo "That is not a valid choice, try a number from 1 to 2."
+     ;;
+esac
+done
+}
+function install_observium_server {
+if [ -x /usr/sbin/nginx ] || [ -x /usr/sbin/lighttpd ]; then
+check_install php5-fpm 0 "You need to install php"
+if ((! $(ps -ef | grep -v grep | grep mysql | wc -l) > 0 ))
+then
+        print_warn "The MySQL server is stopped or not installed.";
+        exit 1
+
+fi
+rand=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 4 | head -n 1)
+u=observ_$rand
+p=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 12 | head -n 1)
+#EXPECTED_ARGS=3
+#E_BADARGS=65
+MYSQL=`which mysql`
+Q1="CREATE DATABASE IF NOT EXISTS observium;"
+Q2="GRANT USAGE ON *.* TO $u@localhost IDENTIFIED BY '$p';"
+Q3="GRANT ALL PRIVILEGES ON observium.* TO $u@localhost;"
+Q4="FLUSH PRIVILEGES;"
+SQL="${Q1}${Q2}${Q3}${Q4}"
+print_info "Enter mysql root password"
+$MYSQL -uroot -p -e "$SQL"
+print_info "Installing observium..."
+DEBIAN_FRONTEND=noninteractive apt-get upgrade &> /dev/null
+DEBIAN_FRONTEND=noninteractive apt-get install -y php5-snmp php-pear snmp graphviz php5-json rrdtool fping imagemagick whois mtr-tiny nmap ipmitool python-mysqldb &> /dev/null
+wait
+mkdir -p /opt/observium && cd /opt
+wget -P /opt/ http://www.observium.org/observium-community-latest.tar.gz &> /dev/null
+tar zxvf /opt/observium-community-latest.tar.gz -C /opt &> /dev/null
+cp /opt/observium/config.php.default /opt/observium/config.php
+sed -i "s|USERNAME|"$u"|" /opt/observium/config.php
+sed -i "s|PASSWORD|"$p"|" /opt/observium/config.php
+mkdir -p /opt/observium/rrd
+chown www-data:www-data /opt/observium/rrd
+cd /opt/observium
+php includes/update/update.php &> /dev/null
+if which lighttpd >/dev/null; then
+wget -P /etc/lighttpd/ https://raw.githubusercontent.com/eunas/essentials/master/resources/observium.conf --no-check-certificate &>  /dev/null
+echo "include \"observium.conf\"" >> /etc/lighttpd/lighttpd.conf
+sed -i "s|.*server.document-root.*|server.document-root        = \"/opt/observium/html\"|" /etc/lighttpd/lighttpd.conf
+service lighttpd restart &> /dev/null
+elif which nginx >/dev/null; then
+rm /etc/nginx/conf.d/default.conf
+wget -P /etc/nginx/conf.d/ https://raw.githubusercontent.com/eunas/essentials/master/resources/default.conf &> /dev/null
+sed -i "s|server_name _;|server_name "$(get_ip)";|" /etc/nginx/conf.d/default.conf
+service nginx restart &> /dev/null
+fi
+service php5-fpm restart &> /dev/null
+randp=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 12 | head -n 1)
+php adduser.php admin "$randp" 10
+touch /etc/cron.d/observium
+echo "33  */6   * * *   root    /opt/observium/discovery.php -h all >> /dev/null 2>&1" >> /etc/cron.d/observium
+echo "*/5 *     * * *   root    /opt/observium/discovery.php -h new >> /dev/null 2>&1" >> /etc/cron.d/observium
+echo "*/5 *     * * *   root    /opt/observium/poller-wrapper.py 2 >> /dev/null 2>&1" >> /etc/cron.d/observium
+print_done "---------------------------------------------------------------"
+print_done "Observium has been installed. Login at http://$(get_external_ip)"
+print_done "Login details:"
+print_done "Username: admin"
+print_done "Password: $randp"
+print_done "---------------------------------------------------------------"
+print_done "Database details"
+print_done "Database: observium"
+print_done "Username: $u"
+print_done "password: $p"
+print_done "---------------------------------------------------------------"
+print_warn "Write this information down now. It will NOT be stored."
+print_done "---------------------------------------------------------------"
+print_done ""
+print_done ""
+print_done ""
+else
+print_warn "Observium requires a webserver, PHP and a database server. Aborting."
+exit 1
+fi
+}
+function install_observium_client {
+#!/bin/bash
+print_info "Contact email"
+read mail
+print_info "Community"
+read comm
+print_info "Specify port (Leave blank for default)"
+read port
+if [ -z "$port" ] ; then
+port="161"
+fi
+COMMUNITY=$comm
+CONTACT=$mail
+print_info "Please enter where the server is physically located:"
+read loc
+LOCATION=$loc
+listen=$(hostname --ip-address)
+print_info "Installing Observium client, please wait..."
+apt-get update &> /dev/null
+apt-get install -y snmpd &> /dev/null
+sed -i.bak "/SNMPDOPTS=/c\SNMPDOPTS='-Lsd -Lf /dev/null -u snmp -p /var/run/snmpd.pid'" /etc/default/snmpd
+cat > /etc/snmp/snmpd.conf <<END
+com2sec readonly  default         $COMMUNITY
+group MyROGroup v1         readonly
+group MyROGroup v2c        readonly
+group MyROGroup usm        readonly
+agentaddress $listen:$port
+view all    included  .1                               80
+access MyROGroup ""      any       noauth    exact  all    none   none
+syslocation $LOCATION
+syscontact $CONTACT
+#This line allows Observium to detect the host OS if the distro script is installed
+extend .1.3.6.1.4.1.2021.7890.1 distro /usr/bin/distro
+END
+#get distro checking script
+wget -O distro https://raw.githubusercontent.com/eunas/essentials/master/resources/observium_distro --no-check-certificate &> /dev/null
+mv distro /usr/bin/distro
+chmod +x /usr/bin/distro
+/etc/init.d/snmpd restart &> /dev/null
+print_done "#########################################################"
+print_done "##           !! !! Installation Complete !! !!         ##"
+print_done "#########################################################"
+print_done "#You may add this server to your Observium installation #"
+print_done "#          using $COMMUNITY as the Community            #"
+print_done "#########################################################"
+print_done "##         Install Script by www.SonicBoxes.com        ##"
+print_done "##              Modified by eunas.net                  ##"
+print_done "#########################################################"
+}
 ############################################################
 # Menu
 ############################################################
@@ -1732,10 +1958,11 @@ print_info "12) Squid3 Proxy Server"
 print_info "13) sSMTP server"
 print_info "14) Aria2 + Webui"
 print_info "15) X2Go + Xfce Desktop"
-print_info "16) Linux-Dash"
-print_info "17) User Management"
-print_info "18) System Management"
-print_info "19) About"
+print_info "16) Observium"
+print_info "17) Linux-Dash"
+print_info "18) User Management"
+print_info "19) System Management"
+print_info "20) About"
 print_info "e) Exit"
 read choice
 case $choice in
@@ -1800,18 +2027,22 @@ install_remotedesktop
 break
 ;;
 16)
-get_linuxdash
+setup_observium
 break
 ;;
 17)
-user_management
+get_linuxdash
 break
 ;;
 18)
-system_management
+user_management
 break
 ;;
 19)
+system_management
+break
+;;
+20)
 script_about
 break
 ;;
@@ -1819,7 +2050,7 @@ e|E)
 break
 ;;
      *)
-     echo "That is not a valid choice, try a number from 1 to 19."
+     echo "That is not a valid choice, try a number from 1 to 20."
      ;;
 esac
 done

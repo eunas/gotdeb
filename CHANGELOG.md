@@ -1,3 +1,9 @@
+### 1.5.3 (2015-02-27)
+
+- Added Observium server and client install.
+- phpMyAdmin is now cloned from the official github. Upping it to a newer version. [(Advanced features disabled.)](https://github.com/eunas/essentials/wiki/phpMyAdmin)
+- Minor tweaks and fixes.
+
 ### 1.5.2 (2015-02-19)
 
 - Re-engineered ssmtp install.

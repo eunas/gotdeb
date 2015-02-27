@@ -19,7 +19,7 @@ Run the script and follow the assistant:
 * PHP-FPM 5.6.5
 * MySQL Server
 * MariaDB server
-* phpMyAdmin
+* [phpMyAdmin](https://github.com/eunas/essentials/wiki/phpMyAdmin)
 * PureFTPD (FTPS enabled)
 * Java 7 JDK
 * MCMyAdmin x64
@@ -30,6 +30,9 @@ Run the script and follow the assistant:
 * sSMTP server
 * Aria2 + webui
 * [X2Go + xfce Desktop](https://github.com/eunas/essentials/wiki/Remote-Desktop)
+* [Observium](https://github.com/eunas/essentials/wiki/Observium)
+ * Server
+ * Client
 * Linux Dash server monitor
 * User Management
  * Add user
