@@ -53,7 +53,8 @@ IP=$(ifconfig | grep 'inet addr:' | grep -v inet6 | grep -vE '127\.[0-9]{1,3}\.[
 echo "$IP"
 }
 function get_external_ip {
-curl http://ipecho.net/plain; echo;
+EIP=$(curl ifconfig.me/ip)
+echo "$EIP"
 }
 function get_version {
 version=$(dpkg -s $1 | grep 'Version')
@@ -114,8 +115,8 @@ file="/etc/apt/sources.list.d/mariadb.list"
 if [ ! -f "$file" ]
 then
 touch /etc/apt/sources.list.d/mariadb.list
-echo "deb http://nyc2.mirrors.digitalocean.com/mariadb/repo/10.0/debian wheezy main" >> /etc/apt/sources.list.d/mariadb.list
-echo "deb-src http://nyc2.mirrors.digitalocean.com/mariadb/repo/10.0/debian wheezy main" >> /etc/apt/sources.list.d/mariadb.list
+echo "deb http://mirror.i3d.net/pub/mariadb/repo/10.0/debian wheezy main" >> /etc/apt/sources.list.d/mariadb.list
+echo "deb-src http://mirror.i3d.net/pub/mariadb/repo/10.0/debian wheezy main" >> /etc/apt/sources.list.d/mariadb.list
 apt-key adv --recv-keys --keyserver keyserver.ubuntu.com 0xcbcb082a1bb943db &> /dev/null
 wait
 apt-get update &> /dev/null
@@ -1678,8 +1679,7 @@ sed -i "s/TESTSECRET/$secret/g" $CONFIG
 sed -i "s/PORT/$port/g" $CONFIG
 /opt/vpnserver/vpncmd localhost:443 /SERVER /IN:$CONFIG &> /dev/null
 rm -r /tmp/.vpntemp/vpnsetup.in
-if [[ method = "2" ]]
-then
+if [[ $method = "2" ]] ; then
 echo "interface=tap_soft" >> /etc/dnsmasq.conf
 echo "dhcp-range=tap_soft,192.168.7.50,192.168.7.60,12h" >> /etc/dnsmasq.conf
 echo "dhcp-option=tap_soft,3,192.168.7.1" >> /etc/dnsmasq.conf
