@@ -686,11 +686,14 @@ exit
 fi
 }
 function install_openvpn {
-if grep -q "CentOS release 5" "/etc/redhat-release"; then
-	echo "CentOS 5 is too old and not supported"
+if [[ ! -e /dev/net/tun ]]; then
+	print_warn "TUN/TAP is not available"
 	exit
 fi
-
+if grep -q "CentOS release 5" "/etc/redhat-release"; then
+	print_warn "CentOS 5 is too old and not supported"
+	exit
+fi
 if [[ -e /etc/debian_version ]]; then
 	OS=debian
 	RCLOCAL='/etc/rc.local'
@@ -700,7 +703,7 @@ elif [[ -e /etc/centos-release || -e /etc/redhat-release ]]; then
 	# Needed for CentOS 7
 	chmod +x /etc/rc.d/rc.local
 else
-	echo "Looks like you aren't running this installer on a Debian, Ubuntu or CentOS system"
+	print_warn "Looks like you aren't running this installer on a Debian, Ubuntu or CentOS system"
 	exit
 fi
 newclient () {
@@ -1020,7 +1023,7 @@ elif [ "$b" == "venet0:0" ]; then
 fi
 
 apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get -y install apache2-utils squid3 &> /dev/null
+DEBIAN_FRONTEND=noninteractive apt-get -y install apache2-utils squid3 curl &> /dev/null
 
 rm /etc/squid3/squid.conf
 
@@ -1056,6 +1059,11 @@ http_port $sp
 hierarchy_stoplist cgi-bin ?
 coredump_dir /var/spool/squid3
 cache deny all
+
+access_log none
+cache_store_log none
+cache_log /dev/null
+logfile_rotate 0
 
 refresh_pattern ^ftp:        1440    20%    10080
 refresh_pattern ^gopher:    1440    0%    1440
@@ -1308,6 +1316,7 @@ print_info "4) System tests"
 print_info "5) Secure System"
 print_info "6) Speedtest.net"
 print_info "7) Get OS Version"
+print_info "8) TUN/TAP Status"
 print_info "e) Exit"
 read choice
 case $choice in
@@ -1339,11 +1348,19 @@ break
 show_os_arch_version
 break
 ;;
+8)
+if [[ ! -e /dev/net/tun ]]; then
+	print_info "TUN/TAP is not available"
+	else
+    print_info "TUN/TAP is available"
+fi
+break
+;;
 e)
 break
 ;;
      *)
-     print_warn "That is not a valid choice, try a number from 1 to 2."
+     print_warn "That is not a valid choice, try a number from 1 to 8."
      ;;
 esac
 done
@@ -1381,7 +1398,8 @@ function remove_unneeded {
     print_done "You should restart now"
 }
 function essentials {
-apt-get install -y nano rcconf lftp unzip
+apt-get update &> /dev/null
+apt-get install -y nano rcconf lftp unzip  &> /dev/null
 print_done "Essentials services installed"
 }
 function script_about {
@@ -1417,7 +1435,7 @@ echo "deb-src http://http.us.debian.org/debian testing main non-free contrib" >>
 apt-get update &> /dev/null
 wait
 fi
-DEBIAN_FRONTEND=noninteractive apt-get install aria2 git -y &> /dev/null
+DEBIAN_FRONTEND=noninteractive apt-get install aria2 git curl -y &> /dev/null
 wait
 rm /etc/apt/sources.list.d/debian-testing.list
 apt-get update
@@ -1517,7 +1535,7 @@ fi
 function get_linuxdash {
 check_install nginx 0 "Please install nginx"
 check_install php5-fpm 0 "Please install PHP"
-apt-get install git -y
+apt-get install git curl -y
 mkdir /usr/share/nginx/html/monitor
 git clone https://github.com/afaqurk/linux-dash /usr/share/nginx/html/monitor
 print_done "You can view the monitor at http://$(get_external_ip)/monitor"
@@ -1536,7 +1554,7 @@ fi
 }
 function install_softether {
 check_install softether 1 "SoftEtherVPN is already installed" v
-print_info "Running pre checks..."
+print_info "Running pre checks, this might take a while..."
 apt-get update &> /dev/null
 apt-get --purge remove -y bind9* &> /dev/null
 apt-get install build-essential dnsmasq -y &> /dev/null
@@ -1616,13 +1634,13 @@ update-rc.d vpnserver defaults &> /dev/null
 mkdir /tmp/.vpntemp
 touch /tmp/.vpntemp/vpnsetup.in
 CONFIG=/tmp/.vpntemp/vpnsetup.in
-print_info "Please enter your softether admin password: "
+print_info "Please enter a softether admin password: "
 read -s softadmin
-print_info "Please enter your IPSEC Secret: "
+print_info "Please enter a IPSEC Secret: "
 read -s secret
-print_info "Please enter your l2tp username: "
+print_info "Please enter a l2tp username: "
 read username
-print_info "Please enter your l2tp password: "
+print_info "Please enter a l2tp password: "
 read -s pass
 print_info "Enter a custom port: "
 read port
@@ -1683,6 +1701,7 @@ if [[ $method = "2" ]] ; then
 echo "interface=tap_soft" >> /etc/dnsmasq.conf
 echo "dhcp-range=tap_soft,192.168.7.50,192.168.7.60,12h" >> /etc/dnsmasq.conf
 echo "dhcp-option=tap_soft,3,192.168.7.1" >> /etc/dnsmasq.conf
+sed -i "s|.*listen-address=.*|listen-address=$(get_ip)|" /etc/dnsmasq.conf
 touch /etc/sysctl.d/ipv4_forwarding.conf
 fi
 echo "net.ipv4.ip_forward = 1" > /etc/sysctl.d/ipv4_forwarding.conf
@@ -1837,7 +1856,7 @@ print_info "Enter mysql root password"
 $MYSQL -uroot -p -e "$SQL"
 print_info "Installing observium..."
 DEBIAN_FRONTEND=noninteractive apt-get upgrade &> /dev/null
-DEBIAN_FRONTEND=noninteractive apt-get install -y php5-snmp php-pear snmp graphviz php5-json rrdtool fping imagemagick whois mtr-tiny nmap ipmitool python-mysqldb &> /dev/null
+DEBIAN_FRONTEND=noninteractive apt-get install -y php5-snmp php-pear snmp graphviz php5-json rrdtool fping imagemagick whois mtr-tiny nmap ipmitool python-mysqldb curl &> /dev/null
 wait
 mkdir -p /opt/observium && cd /opt
 wget -P /opt/ http://www.observium.org/observium-community-latest.tar.gz &> /dev/null
