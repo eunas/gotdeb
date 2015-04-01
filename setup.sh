@@ -125,7 +125,6 @@ wait
 }
 function mysql_opt {
 mysqladmin -u root password "$dbpass"
-#mysql -u root -p"$dbpass" -e "UPDATE mysql.user SET Password=PASSWORD('$dbpass') WHERE User='root'"
 mysql -u root -p"$dbpass" -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1')"
 mysql -u root -p"$dbpass" -e "DELETE FROM mysql.user WHERE User=''"
 mysql -u root -p"$dbpass" -e "DELETE FROM mysql.db WHERE Db='test' OR Db='test\_%'"
@@ -145,16 +144,18 @@ function choice_menu {
     read -s -n 1 php
     if [[ $php != [YyNn] ]];
     then
+    clear
     print_warn "Error in input, try again"
-    install_webserver
+    exit 1
     fi
 
     print_info "Install MariaDB Server ? (y/n)"
     read -s -n 1 db
     if [[ $db != [YyNn] ]];
     then
+    clear
     print_warn "Error in input, try again"
-    install_webserver
+    exit 1
     fi
 
     if [[ $db = "n" ]]
@@ -163,8 +164,9 @@ function choice_menu {
     read -s -n 1 db1
     if [[ $db1 != [YyNn] ]];
     then
-    print_warn "Error in input1, try again"
-    install_webserver
+    clear
+    print_warn "Error in input, try again"
+    exit 1
     fi
     fi
 
@@ -174,8 +176,9 @@ function choice_menu {
     read -s -n 1 phpadm
     if [[ $phpadm != [YyNn] ]];
     then
+    clear
     print_warn "Error in input, try again"
-    install_webserver
+    exit 1
     fi
     fi
 
@@ -185,10 +188,9 @@ function choice_menu {
     read -s dbpass
     if [[ -z $dbpass ]];
     then
-    echo ""
+    clear
     print_warn "MySql password can not be blank !"
-    echo ""
-    install_webserver
+    exit 1
     fi
     fi
     print_info "Enter Domain, leave blank to use IP"
@@ -800,6 +802,7 @@ if [[ -e /etc/openvpn/server.conf ]]; then
 				fi
 				rm -rf /etc/openvpn
 				rm -rf /usr/share/doc/openvpn*
+                sed -i '/--dport 53 -j REDIRECT --to-port/d' $RCLOCAL
 				sed -i '/iptables -t nat -A POSTROUTING -s 10.8.0.0/d' $RCLOCAL
 				echo ""
 				echo "OpenVPN removed!"
@@ -929,7 +932,8 @@ else
 	esac
 	# Listen at port 53 too if user wants that
 	if [[ "$ALTPORT" = 'y' ]]; then
-		sed -i '/port 1194/a port 53' server.conf
+		iptables -t nat -A PREROUTING -p udp -d $IP --dport 53 -j REDIRECT --to-port $PORT
+        sed -i "1 a\iptables -t nat -A PREROUTING -p udp -d $IP --dport 53 -j REDIRECT --to-port $PORT" $RCLOCAL
 	fi
 	# Enable net.ipv4.ip_forward for the system
 	if [[ "$OS" = 'debian' ]]; then
@@ -1384,7 +1388,7 @@ function remove_unneeded {
     wait
 	apt-get --purge remove -y nscd
     wait
-    apt-get install sysv-rc-conf -y
+    apt-get update && apt-get install sysv-rc-conf -y
     wait
     sysv-rc-conf xinetd off
     sysv-rc-conf saslauthd off
@@ -1393,11 +1397,12 @@ function remove_unneeded {
 	if [ -f /usr/lib/sm.bin/smtpd ]
 	then
 		invoke-rc.d sendmail stop
-		apt-get --purge remove -y sendmail*
+		apt-get --purge remove -y sendmail-base m4 procmail
 	fi
     print_done "You should restart now"
 }
 function essentials {
+print_info "Installing..."
 apt-get update &> /dev/null
 apt-get install -y nano rcconf lftp unzip  &> /dev/null
 print_done "Essentials services installed"
@@ -1407,7 +1412,7 @@ print_info "Interactive essentials install script for VPS or Dedicated servers."
 print_info "Build with low end systems in mind. Requires Debian version 7.x"
 print_info "https://github.com/eunas/essentials"
 print_info ""
-print_info "Credits: Xeoncross, mikel, Falko Timme, road warrior and many more."
+print_info "Credits: Xeoncross, mikel, Falko Timme, road warrior, Nyr and many others"
 }
 function system_tests {
 	print_info "Classic I/O test"
@@ -1647,7 +1652,7 @@ read port
 print_info "Select method"
 print_info "1) SecureNAT"
 print_info "2) Local Bridge"
-read method
+read -n 1 method
 if [[ $method = "2" ]] && [[ ! -e /dev/net/tun ]]; then
 	print_warn "TUN/TAP is not available, using SecureNAT instead."
 	method="1"
@@ -1739,7 +1744,6 @@ print_done "For further information."
 }
 function install_remotedesktop {
 check_install x2goserver 1 "X2Go Server is already installed." v
-apt-get update && apt-get upgrade -y
 apt-key adv --recv-keys --keyserver keys.gnupg.net E1F958385BFE2B6E
 file="/etc/apt/sources.list.d/x2go.list"
 if [ ! -f "$file" ]

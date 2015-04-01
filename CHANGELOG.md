@@ -1,3 +1,12 @@
+### 1.5.4 (2015-04-01)
+
+- Added TUN/TAP check
+- Fixed error in SoftEtherVPN Bridge setup
+- Fixed error In LEMP / LLMP stack setup.
+- Disabled Squid3 logging
+- Minor tweaks and fixes
+- Applied NYR's latest commit to OpenVPN install.
+
 ### 1.5.3 (2015-02-27)
 
 - Added Observium server and client install.
