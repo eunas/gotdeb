@@ -1,3 +1,6 @@
+### 1.5.5 (2015-04-27)
+ - Updated PHP and x2go server for Debian 8
+
 ### 1.5.4 (2015-04-01)
 
 - Added TUN/TAP check

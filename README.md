@@ -2,7 +2,7 @@
 
 Interactive essentials install script for VPS or Dedicated servers.
 Build with low end systems in mind.
-Requires Debian version 7.x
+Requires Debian version 7.x or 8.x
 
 ###Installation
 Run the script and follow the assistant:
@@ -16,7 +16,7 @@ Run the script and follow the assistant:
  * nginx 1.6.x
  * nginx 1.7.x
  * lighttpd 1.4.35
-* PHP-FPM 5.6.5
+* PHP-FPM 5.6
 * MySQL Server
 * MariaDB server
 * [phpMyAdmin](https://github.com/eunas/essentials/wiki/phpMyAdmin)

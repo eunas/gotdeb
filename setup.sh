@@ -60,6 +60,15 @@ function get_version {
 version=$(dpkg -s $1 | grep 'Version')
 print_info "$version"
 }
+function plain_version {
+VERSION=$(sed 's/\..*//' /etc/debian_version)
+if [ $VERSION -gt "7" ];
+  then
+    echo "1"
+  else
+    echo "2"
+fi
+}
 function update_upgrade {
 	# Run through the apt-get update/upgrade first.
 	# This should be done before we try to install any package
@@ -70,7 +79,6 @@ function update_upgrade {
 	apt-get -q -y autoremove
 }
 function dotdeb_php_repo {
-print_info "Installing PHP-FPM..."
 file="/etc/apt/sources.list.d/dotdeb_php.list"
 if [ ! -f "$file" ]
 then
@@ -352,7 +360,9 @@ fi
 function install_php {
     if [ -x /usr/sbin/nginx ] || [ -x /usr/sbin/lighttpd ]; then
     check_install php5-fpm 1 "php5-fpm is already installed" v
+    if [ $(plain_version) = "2" ]; then
     dotdeb_php_repo
+    fi
     DEBIAN_FRONTEND=noninteractive apt-get install php5-fpm php5-common php5-mysqlnd php5-sqlite php5-mcrypt php5-curl curl php5-cli php5-gd -y &> /dev/null
     sed -i "s|.*;cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
     sed -i "s|.*upload_max_filesize = 2M.*|upload_max_filesize = 128M|" /etc/php5/fpm/php.ini
@@ -1749,8 +1759,13 @@ file="/etc/apt/sources.list.d/x2go.list"
 if [ ! -f "$file" ]
 then
 touch /etc/apt/sources.list.d/x2go.list
+if [ $(plain_version) = "2" ]; then
 echo "deb http://packages.x2go.org/debian wheezy main" >> /etc/apt/sources.list.d/x2go.list
 echo "deb-src http://packages.x2go.org/debian wheezy main" >> /etc/apt/sources.list.d/x2go.list
+else
+echo "deb http://packages.x2go.org/debian jessie main" >> /etc/apt/sources.list.d/x2go.list
+echo "deb-src http://packages.x2go.org/debian jessie main" >> /etc/apt/sources.list.d/x2go.list
+fi
 fi
 apt-get update
 apt-get install x2go-keyring -y
