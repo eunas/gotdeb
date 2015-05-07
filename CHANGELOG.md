@@ -1,3 +1,7 @@
+### 1.5.6 (2015-05-07)
+- Updated nginx for Debian 8
+- Minor tweaks and fixes
+
 ### 1.5.5 (2015-04-27)
  - Updated PHP and x2go server for Debian 8
 

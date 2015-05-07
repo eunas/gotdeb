@@ -53,8 +53,15 @@ IP=$(ifconfig | grep 'inet addr:' | grep -v inet6 | grep -vE '127\.[0-9]{1,3}\.[
 echo "$IP"
 }
 function get_external_ip {
-EIP=$(curl ifconfig.me/ip)
-echo "$EIP"
+a="`netstat -i | cut -d' ' -f1 | grep eth0`";
+b="`netstat -i | cut -d' ' -f1 | grep venet0:0`";
+
+if [ "$a" == "eth0" ]; then
+  ip="`/sbin/ifconfig eth0 | awk -F':| +' '/inet addr/{print $4}'`";
+elif [ "$b" == "venet0:0" ]; then
+  ip="`/sbin/ifconfig venet0:0 | awk -F':| +' '/inet addr/{print $4}'`";
+fi
+echo "$ip"
 }
 function get_version {
 version=$(dpkg -s $1 | grep 'Version')
@@ -100,16 +107,23 @@ if [ ! -f "$file" ]
 then
 touch /etc/apt/sources.list.d/nginx.list
 fi
-if [ $web = "1" ]
-then
 >/etc/apt/sources.list.d/nginx.list
+if [[ $web = "1" ]] && [[ $(plain_version) = "2" ]];
+then
 echo "deb http://nginx.org/packages/debian/ wheezy nginx" >> /etc/apt/sources.list.d/nginx.list
 echo "deb-src http://nginx.org/packages/debian/ wheezy nginx" >> /etc/apt/sources.list.d/nginx.list
-elif [ $web = "2" ]
+elif [[ $web = "1" ]] && [[ $(plain_version) = "1" ]];
 then
->/etc/apt/sources.list.d/nginx.list
+echo "deb http://nginx.org/packages/debian/ jessie nginx" >> /etc/apt/sources.list.d/nginx.list
+echo "deb-src http://nginx.org/packages/debian/ jessie nginx" >> /etc/apt/sources.list.d/nginx.list
+elif [[ $web = "2" ]] && [[ $(plain_version) = "2" ]];
+then
 echo "deb http://nginx.org/packages/mainline/debian/ wheezy nginx" >> /etc/apt/sources.list.d/nginx.list
 echo "deb-src http://nginx.org/packages/mainline/debian/ wheezy nginx" >> /etc/apt/sources.list.d/nginx.list
+elif [[ $web = "2" ]] && [[ $(plain_version) = "1" ]];
+then
+echo "deb http://nginx.org/packages/mainline/debian/ jessie nginx" >> /etc/apt/sources.list.d/nginx.list
+echo "deb-src http://nginx.org/packages/mainline/debian/ jessie nginx" >> /etc/apt/sources.list.d/nginx.list
 fi
 wget http://nginx.org/keys/nginx_signing.key &> /dev/null
 apt-key add nginx_signing.key &> /dev/null
@@ -203,6 +217,7 @@ function choice_menu {
     fi
     print_info "Enter Domain, leave blank to use IP"
     read d
+    print_info "Please wait ..."
 }
 ############################################################
 # Apps
@@ -358,6 +373,7 @@ install_phpmyadmin
 fi
 }
 function install_php {
+    print_info "Installing PHP ..."
     if [ -x /usr/sbin/nginx ] || [ -x /usr/sbin/lighttpd ]; then
     check_install php5-fpm 1 "php5-fpm is already installed" v
     if [ $(plain_version) = "2" ]; then
@@ -476,8 +492,8 @@ fi
 }
 function install_webserver  {
 print_info "Please choose a webserver to install"
-    print_info "1) nginx 1.6.2"
-    print_info "2) nginx 1.7.10"
+    print_info "1) nginx 1.8.x"
+    print_info "2) nginx 1.9.x"
     print_info "3) lighttpd 1.4.35"
     print_info "e) Exit"
     read -s -n 1 web
@@ -1453,7 +1469,7 @@ fi
 DEBIAN_FRONTEND=noninteractive apt-get install aria2 git curl -y &> /dev/null
 wait
 rm /etc/apt/sources.list.d/debian-testing.list
-apt-get update
+apt-get update &> /dev/null
 wait
 mkdir /usr/share/aria2
 mkdir /usr/share/Downloads
@@ -1982,7 +1998,7 @@ check_sanity
 while true; do
 print_info "Choose what you want to install:"
 print_info "1) Webserver"
-print_info "2) PHP-FPM 5.6.5"
+print_info "2) PHP-FPM 5.6"
 print_info "3) MySQL Server"
 print_info "4) MariaDB server"
 print_info "5) phpMyAdmin"

@@ -13,10 +13,10 @@ Run the script and follow the assistant:
 ###Script content
 
 * Webserver
- * nginx 1.6.x
- * nginx 1.7.x
+ * nginx 1.8.x
+ * nginx 1.9.x
  * lighttpd 1.4.35
-* PHP-FPM 5.6
+* PHP-FPM 5.6 (https://github.com/eunas/essentials/wiki/PHP-FPM)
 * MySQL Server
 * MariaDB server
 * [phpMyAdmin](https://github.com/eunas/essentials/wiki/phpMyAdmin)
