@@ -1266,6 +1266,11 @@ configure_ssmtp
 fi
 }
 function show_os_arch_version {
+if [ $(dpkg-query -W -f='${Status}' lsb-release 2>/dev/null | grep -c "ok installed") -eq 0 ];
+then
+  apt-get install lsb-release >/dev/null
+  wait
+fi
 	ARCH=$(uname -m | sed 's/x86_//;s/i[3-6]86/32/')
 
 	if [ -f /etc/lsb-release ]; then
@@ -1479,7 +1484,7 @@ touch /usr/share/aria2/aria2.conf
 touch /usr/share/aria2/input.txt
 /bin/cat <<"EOM" >/usr/share/aria2/aria2.conf
 dir=/usr/share/Downloads
-file-allocation=falloc
+file-allocation=none
 continue
 log-level=warn
 check-certificate=false
@@ -1487,7 +1492,7 @@ max-connection-per-server=8
 summary-interval=120
 daemon=true
 enable-rpc=true
-enable-dht=false
+enable-dht=true
 rpc-listen-port=6800
 rpc-listen-all=true
 max-concurrent-downloads=3
@@ -1593,13 +1598,13 @@ mkdir /tmp/softether
 print_info "Downloading and installing SoftEther VPN Server...."
 MACHINE_TYPE=`uname -m`
 if [ ${MACHINE_TYPE} == 'x86_64' ]; then
-wget -O /tmp/softether/softether-vpnserver_x64.tar.gz http://www.softether-download.com/files/softether/v4.14-9529-beta-2015.02.02-tree/Linux/SoftEther_VPN_Server/64bit_-_Intel_x64_or_AMD64/softether-vpnserver-v4.14-9529-beta-2015.02.02-linux-x64-64bit.tar.gz &> /dev/null
+wget -O /tmp/softether/softether-vpnserver_x64.tar.gz http://www.softether-download.com/files/softether/v4.17-9562-beta-2015.05.30-tree/Linux/SoftEther_VPN_Server/64bit_-_Intel_x64_or_AMD64/softether-vpnserver-v4.17-9562-beta-2015.05.30-linux-x64-64bit.tar.gz &> /dev/null
 wait
 cd /tmp/softether
 tar zxf softether-vpnserver_x64.tar.gz
 wait
 else
-wget -O /tmp/softether/softether-vpnserver_x86.tar.gz  http://www.softether-download.com/files/softether/v4.14-9529-beta-2015.02.02-tree/Linux/SoftEther_VPN_Server/32bit_-_Intel_x86/softether-vpnserver-v4.14-9529-beta-2015.02.02-linux-x86-32bit.tar.gz &> /dev/null
+wget -O /tmp/softether/softether-vpnserver_x86.tar.gz http://www.softether-download.com/files/softether/v4.17-9562-beta-2015.05.30-tree/Linux/SoftEther_VPN_Server/32bit_-_Intel_x86/softether-vpnserver-v4.17-9562-beta-2015.05.30-linux-x86-32bit.tar.gz &> /dev/null
 wait
 cd /tmp/softether
 tar zxf softether-vpnserver_x86.tar.gz
@@ -1678,7 +1683,7 @@ read port
 print_info "Select method"
 print_info "1) SecureNAT"
 print_info "2) Local Bridge"
-read -n 1 method
+read -s -n 1 method
 if [[ $method = "2" ]] && [[ ! -e /dev/net/tun ]]; then
 	print_warn "TUN/TAP is not available, using SecureNAT instead."
 	method="1"
@@ -1841,6 +1846,35 @@ break
      ;;
 esac
 done
+}
+function plex_setup {
+ram=$(free | awk '/^Mem:/{print $2}')
+if [[  "$ram" -lt "524288" ]] ; then
+print_warn "It's not recommended to install plex on a server with less then 512 MB RAM. Are you sure you want to continue ? [Yes|No]"
+read ram
+else
+plex_install
+fi
+if [[ $ram =~ [yY](es)* ]] ; then
+plex_install
+else
+exit 1
+fi
+}
+function plex_install {
+print_info "Installing Plex media server ..."
+apt-get update &> /dev/null && apt-get install curl -y &> /dev/null
+wait
+echo "deb http://shell.ninthgate.se/packages/debian wheezy main" | tee -a /etc/apt/sources.list.d/plexmediaserver.list
+curl http://shell.ninthgate.se/packages/shell-ninthgate-se-keyring.key | apt-key add -  &> /dev/null
+wait
+apt-get update &> /dev/null && apt-get install plexmediaserver -y  &> /dev/null
+wait
+wget --no-check-certificate -O /etc/init.d/plexmediaserver https://raw.githubusercontent.com/eunas/essentials/master/resources/plexmediaserver  &> /dev/null
+wait
+chmod +x /etc/init.d/plexmediaserver
+update-rc.d plexmediaserver defaults &> /dev/nul
+print_done "Plex media server has been installed. You can access it at http://$(get_ip):32400/web To get access to the server settings please setup a VPN on the server and access it's localip using that."
 }
 function setup_observium {
 while true; do
@@ -2012,11 +2046,12 @@ print_info "12) Squid3 Proxy Server"
 print_info "13) sSMTP server"
 print_info "14) Aria2 + Webui"
 print_info "15) X2Go + Xfce Desktop"
-print_info "16) Observium"
-print_info "17) Linux-Dash"
-print_info "18) User Management"
-print_info "19) System Management"
-print_info "20) About"
+print_info "16) Plex Media Server"
+print_info "17) Observium"
+print_info "18) Linux-Dash"
+print_info "19) User Management"
+print_info "20) System Management"
+print_info "21) About"
 print_info "e) Exit"
 read choice
 case $choice in
@@ -2081,22 +2116,26 @@ install_remotedesktop
 break
 ;;
 16)
-setup_observium
+plex_setup
 break
 ;;
 17)
-get_linuxdash
+setup_observium
 break
 ;;
 18)
-user_management
+get_linuxdash
 break
 ;;
 19)
-system_management
+user_management
 break
 ;;
 20)
+system_management
+break
+;;
+21)
 script_about
 break
 ;;
@@ -2104,7 +2143,7 @@ e|E)
 break
 ;;
      *)
-     echo "That is not a valid choice, try a number from 1 to 20."
+     echo "That is not a valid choice, try a number from 1 to 21."
      ;;
 esac
 done
