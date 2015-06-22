@@ -1,3 +1,9 @@
+### 1.5.7 (2015-06-22)
+- Added [Plex Media Server](https://github.com/eunas/essentials/wiki/plexmediaserver)
+- Updated Softether VPN to latest build
+- Changed file-allocation for aria2 to none.
+- Minor tweaks and fixes
+
 ### 1.5.6 (2015-05-07)
 - Updated nginx for Debian 8
 - Minor tweaks and fixes
