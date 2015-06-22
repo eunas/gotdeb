@@ -30,6 +30,7 @@ Run the script and follow the assistant:
 * sSMTP server
 * Aria2 + webui
 * [X2Go + xfce Desktop](https://github.com/eunas/essentials/wiki/Remote-Desktop)
+* [Plex Media Server](https://github.com/eunas/essentials/wiki/plexmediaserver)
 * [Observium](https://github.com/eunas/essentials/wiki/Observium)
  * Server
  * Client
