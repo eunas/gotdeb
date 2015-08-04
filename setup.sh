@@ -328,6 +328,13 @@ install_phpmyadmin
 fi
 }
 function install_lighttpd  {
+if [[ $(plain_version) = "2" ]];
+then
+clear
+print_info "Lighttpd is only supported on Debian 8"
+print_info "Aborting"
+exit 1
+fi
 check_install nginx 1 "nginx is already installed. Aborting"
 if which lighttpd >/dev/null; then
 print_warn "lighttpd is already installed. Aborting"
@@ -341,12 +348,13 @@ if which apache2 >/dev/null; then
     fi
 DEBIAN_FRONTEND=noninteractive apt-get upgrade -y &> /dev/null
 apt-get build-dep lighttpd -y &> /dev/null
-apt-get -f install libterm-readline-perl-perl -y &> /dev/null
+apt-get -f install libterm-readline-perl-perl curl -y &> /dev/null
 MACHINE_TYPE=`uname -m`
+curl http://download.opensuse.org/repositories/home:/stbuehler:/lighttpd-1.4.x-nightlies/Debian_8.0/Release.key | apt-key add -  &> /dev/null
 if [ ${MACHINE_TYPE} == 'x86_64' ]; then
-wget -O /tmp/ligttpd.deb http://download.opensuse.org/repositories/server:/http/Debian_7.0/amd64/lighttpd_1.4.35-0.1_amd64.deb &> /dev/null
+wget -O /tmp/ligttpd.deb http://download.opensuse.org/repositories/home:/stbuehler:/lighttpd-1.4.x/Debian_8.0/amd64/lighttpd_1.4.36-0.1_amd64.deb &> /dev/null
 else
-wget -O /tmp/ligttpd.deb http://download.opensuse.org/repositories/server:/http/Debian_7.0/i386/lighttpd_1.4.35-0.1_i386.deb &> /dev/null
+wget -O /tmp/ligttpd.deb http://download.opensuse.org/repositories/home:/stbuehler:/lighttpd-1.4.x/Debian_8.0/i386/lighttpd_1.4.36-0.1_i386.deb &> /dev/null
 fi
 dpkg -i /tmp/ligttpd.deb  &> /dev/null
 wait
@@ -402,6 +410,7 @@ fastcgi.server += ( ".php" =>
         ))
 )
 EOM
+    sed -i "s|.*server.document-root.*|server.document-root        = \"/var/www\"|"  /etc/lighttpd/lighttpd.conf
     lighttpd-enable-mod fastcgi &> /dev/null
     lighttpd-enable-mod fastcgi-php &> /dev/null
     service lighttpd restart  &> /dev/null
@@ -718,7 +727,7 @@ if [[ ! -e /dev/net/tun ]]; then
 	print_warn "TUN/TAP is not available"
 	exit
 fi
-if grep -q "CentOS release 5" "/etc/redhat-release"; then
+if grep -qs "CentOS release 5" "/etc/redhat-release"; then
 	print_warn "CentOS 5 is too old and not supported"
 	exit
 fi
@@ -751,14 +760,6 @@ newclient () {
 	echo "</key>" >> ~/$1.ovpn
 }
 
-geteasyrsa () {
-	wget --no-check-certificate -O ~/easy-rsa.tar.gz https://github.com/OpenVPN/easy-rsa/archive/2.2.2.tar.gz
-	tar xzf ~/easy-rsa.tar.gz -C ~/
-	mkdir -p /etc/openvpn/easy-rsa/2.0/
-	cp ~/easy-rsa-2.2.2/easy-rsa/2.0/* /etc/openvpn/easy-rsa/2.0/
-	rm -rf ~/easy-rsa-2.2.2
-	rm -rf ~/easy-rsa.tar.gz
-}
 
 
 # Try to get our IP from the system and fallback to the Internet.
@@ -776,12 +777,11 @@ if [[ -e /etc/openvpn/server.conf ]]; then
 	clear
 		echo "Looks like OpenVPN is already installed"
 		echo "What do you want to do?"
-		echo ""
+        echo ""
 		echo "1) Add a cert for a new user"
 		echo "2) Revoke existing user cert"
 		echo "3) Remove OpenVPN"
 		echo "4) Exit"
-		echo ""
 		read -p "Select an option [1-4]: " option
 		case $option in
 			1)
@@ -802,9 +802,23 @@ if [[ -e /etc/openvpn/server.conf ]]; then
 			exit
 			;;
 			2)
+            # This option could be documented a bit better and maybe even be simplimplified
+			# ...but what can I say, I want some sleep too
+			NUMBEROFCLIENTS=$(tail -n 2 /etc/openvpn/easy-rsa/2.0/keys/index.txt | grep "^V" | wc -l)
+			if [[ "$NUMBEROFCLIENTS" = '0' ]]; then
+				echo ""
+				echo "You have no existing clients!"
+				exit
+			fi
 			echo ""
-			echo "Tell me the existing client name"
-			read -p "Client name: " -e -i client CLIENT
+		   			echo "Select the existing client certificate you want to revoke"
+			tail -n 2 /etc/openvpn/easy-rsa/2.0/keys/index.txt | grep "^V" | cut -d '/' -f 7 | cut -d '=' -f 2 | nl -s ') '
+			if [[ "$NUMBEROFCLIENTS" = '1' ]]; then
+				read -p "Select one client [1]: " CLIENTNUMBER
+			else
+				read -p "Select one client [1-$NUMBEROFCLIENTS]: " CLIENTNUMBER
+			fi
+			CLIENT=$(tail -n 2 /etc/openvpn/easy-rsa/2.0/keys/index.txt | grep "^V" | cut -d '/' -f 7 | cut -d '=' -f 2 | sed -n "$CLIENTNUMBER"p)
 			cd /etc/openvpn/easy-rsa/2.0/
 			. /etc/openvpn/easy-rsa/2.0/vars
 			. /etc/openvpn/easy-rsa/2.0/revoke-full $CLIENT
@@ -882,22 +896,25 @@ else
 	if [[ "$OS" = 'debian' ]]; then
 		apt-get update
 		apt-get install openvpn iptables openssl -y
-		cp -R /usr/share/doc/openvpn/examples/easy-rsa/ /etc/openvpn
-		# easy-rsa isn't available by default for Debian Jessie and newer
-		if [[ ! -d /etc/openvpn/easy-rsa/2.0/ ]]; then
-			geteasyrsa
-		fi
 	else
 		# Else, the distro is CentOS
 		yum install epel-release -y
 		yum install openvpn iptables openssl wget -y
-		geteasyrsa
 	fi
+    # An old version of easy-rsa was available by default in some openvpn packages
+	if [[ -d /etc/openvpn/easy-rsa/2.0/ ]]; then
+		rm -f /etc/openvpn/easy-rsa/2.0/
+	fi
+	# Get easy-rsa
+	wget --no-check-certificate -O ~/easy-rsa.tar.gz https://github.com/OpenVPN/easy-rsa/archive/2.2.2.tar.gz
+	tar xzf ~/easy-rsa.tar.gz -C ~/
+	mkdir -p /etc/openvpn/easy-rsa/2.0/
+	cp ~/easy-rsa-2.2.2/easy-rsa/2.0/* /etc/openvpn/easy-rsa/2.0/
+	rm -rf ~/easy-rsa-2.2.2
+	rm -rf ~/easy-rsa.tar.gz
 	cd /etc/openvpn/easy-rsa/2.0/
 	# Let's fix one thing first...
 	cp -u -p openssl-1.0.0.cnf openssl.cnf
-	# Fuck you NSA - 1024 bits was the default for Debian Wheezy and older
-	sed -i 's|export KEY_SIZE=1024|export KEY_SIZE=2048|' /etc/openvpn/easy-rsa/2.0/vars
 	# Create the PKI
 	. /etc/openvpn/easy-rsa/2.0/vars
 	. /etc/openvpn/easy-rsa/2.0/clean-all
@@ -1036,13 +1053,16 @@ print_info ""
 print_info "Please enter a user name for Squid:"
 read u
 print_info ""
-print_info "Please enter a password (will be shown in plain text while typing):"
-read p
+print_info "Please enter a password:"
+read -s p
 print_info ""
-print_info "Please enter the port squid3 will listen on:"
+print_info "Please enter the port squid3 will listen on (Leave blank for default):"
 read sp
+if [ -z "$sp" ] ; then
+sp="3128"
+fi
 clear
-
+print_info "Installing Squid3, please wait..."
 a="`netstat -i | cut -d' ' -f1 | grep eth0`";
 b="`netstat -i | cut -d' ' -f1 | grep venet0:0`";
 
@@ -1052,7 +1072,7 @@ elif [ "$b" == "venet0:0" ]; then
   ip="`/sbin/ifconfig venet0:0 | awk -F':| +' '/inet addr/{print $4}'`";
 fi
 
-apt-get update
+apt-get update &> /dev/null
 DEBIAN_FRONTEND=noninteractive apt-get -y install apache2-utils squid3 curl &> /dev/null
 
 rm /etc/squid3/squid.conf
@@ -1065,9 +1085,7 @@ auth_param basic program /usr/lib/squid3/ncsa_auth /etc/squid3/squid_passwd
 acl ncsa_users proxy_auth REQUIRED
 http_access allow ncsa_users
 
-acl manager proto cache_object
-acl localhost src 127.0.0.1/32
-acl to_localhost dst 127.0.0.0/8 0.0.0.0/32
+
 acl SSL_ports port 443
 acl Safe_ports port 80        # http
 acl Safe_ports port 21        # ftp
@@ -1079,8 +1097,6 @@ acl Safe_ports port 591        # filemaker
 acl Safe_ports port 777        # multiling http
 acl CONNECT method CONNECT
 
-http_access allow manager localhost
-http_access deny manager
 http_access deny !Safe_ports
 http_access deny CONNECT !SSL_ports
 http_access deny all
@@ -1133,7 +1149,9 @@ request_header_access User-Agent allow all
 request_header_access Cookie allow all
 request_header_access All deny all
 END
-
+if [ $(plain_version) = "1" ]; then
+sed -i "s|.*auth_param basic program.*|auth_param basic program /usr/lib/squid3/basic_ncsa_auth /etc/squid3/squid_passwd|" /etc/squid3/squid.conf
+fi
 htpasswd -b -c /etc/squid3/squid_passwd $u $p
 
 service squid3 restart
@@ -1598,13 +1616,13 @@ mkdir /tmp/softether
 print_info "Downloading and installing SoftEther VPN Server...."
 MACHINE_TYPE=`uname -m`
 if [ ${MACHINE_TYPE} == 'x86_64' ]; then
-wget -O /tmp/softether/softether-vpnserver_x64.tar.gz http://www.softether-download.com/files/softether/v4.17-9562-beta-2015.05.30-tree/Linux/SoftEther_VPN_Server/64bit_-_Intel_x64_or_AMD64/softether-vpnserver-v4.17-9562-beta-2015.05.30-linux-x64-64bit.tar.gz &> /dev/null
+wget -O /tmp/softether/softether-vpnserver_x64.tar.gz http://www.softether-download.com/files/softether/v4.18-9570-rtm-2015.07.26-tree/Linux/SoftEther_VPN_Server/64bit_-_Intel_x64_or_AMD64/softether-vpnserver-v4.18-9570-rtm-2015.07.26-linux-x64-64bit.tar.gz &> /dev/null
 wait
 cd /tmp/softether
 tar zxf softether-vpnserver_x64.tar.gz
 wait
 else
-wget -O /tmp/softether/softether-vpnserver_x86.tar.gz http://www.softether-download.com/files/softether/v4.17-9562-beta-2015.05.30-tree/Linux/SoftEther_VPN_Server/32bit_-_Intel_x86/softether-vpnserver-v4.17-9562-beta-2015.05.30-linux-x86-32bit.tar.gz &> /dev/null
+wget -O /tmp/softether/softether-vpnserver_x86.tar.gz http://www.softether-download.com/files/softether/v4.18-9570-rtm-2015.07.26-tree/Linux/SoftEther_VPN_Server/32bit_-_Intel_x86/softether-vpnserver-v4.18-9570-rtm-2015.07.26-linux-x86-32bit.tar.gz &> /dev/null
 wait
 cd /tmp/softether
 tar zxf softether-vpnserver_x86.tar.gz
@@ -2025,6 +2043,56 @@ print_done "##         Install Script by www.SonicBoxes.com        ##"
 print_done "##              Modified by eunas.net                  ##"
 print_done "#########################################################"
 }
+function install_transmission {
+check_install transmission-daemon 1 "Transmission is already installed" v
+print_info "Please enter a username: "
+read transu
+print_info "Please enter a password: "
+read -s transp
+print_info "Please enter port (Leave blank to use default)"
+read trp
+if [ -z "$trp" ] ; then
+trp="9091"
+fi
+print_info "Installing  Transmission BitTorrent client, please wait..."
+apt-get install transmission-daemon -y  &> /dev/null
+wait
+mkdir /usr/share/transmission/completed /usr/share/transmission/incomplete
+chown debian-transmission:debian-transmission /usr/share/transmission/completed
+chown debian-transmission:debian-transmission /usr/share/transmission/incomplete
+if ! id -u "$transu" >/dev/null 2>&1; then
+useradd -d /home/$transu $transu
+wait
+echo "$transu:$transp" | chpasswd
+mkdir -p "/home/$transu"
+chmod 750 /home/$transu
+chown -R $transu /home/$transu
+fi
+usermod -a -G debian-transmission $transu
+chmod 775 /usr/share/transmission/*
+service transmission-daemon stop &> /dev/null
+wait
+sed -i "s|.*download-dir.*|    \"download-dir\": \"/usr/share/transmission/completed\",|" /etc/transmission-daemon/settings.json
+sed -i "s|\"incomplete-dir\": \"/var/lib/transmission-daemon/Downloads\",|\"incomplete-dir\": \"/usr/share/transmission/incomplete\",|" /etc/transmission-daemon/settings.json
+sed -i "s|.*rpc-password.*|    \"rpc-password\": \"$transp\",|" /etc/transmission-daemon/settings.json
+sed -i "s|.*rpc-port.*|    \"rpc-port\": $trp,|" /etc/transmission-daemon/settings.json
+sed -i "s|.*rpc-bind-address.*|    \"rpc-bind-address\": \"$(get_ip)\",|" /etc/transmission-daemon/settings.json
+sed -i "s|.*rpc-username.*|    \"rpc-username\": \"$transu\",|" /etc/transmission-daemon/settings.json
+sed -i "s|\"rpc-whitelist\": \"127.0.0.1\",|\"rpc-whitelist\": \"127.0.0.1,*.*.*.*\",|" /etc/transmission-daemon/settings.json
+service transmission-daemon start &> /dev/null
+wait
+clear
+print_info ""
+print_info "----------------------------------------------------"
+print_info "Transmissions has been installed."
+print_info ""
+print_info "Navigate to http://$(get_external_ip):$trp"
+print_info "Login with username: $transu and the"
+print_info "password you selected during installation."
+print_info ""
+print_info "----------------------------------------------------"
+print_info ""
+}
 ############################################################
 # Menu
 ############################################################
@@ -2045,13 +2113,14 @@ print_info "11) SoftEther VPN"
 print_info "12) Squid3 Proxy Server"
 print_info "13) sSMTP server"
 print_info "14) Aria2 + Webui"
-print_info "15) X2Go + Xfce Desktop"
-print_info "16) Plex Media Server"
-print_info "17) Observium"
-print_info "18) Linux-Dash"
-print_info "19) User Management"
-print_info "20) System Management"
-print_info "21) About"
+print_info "15) Transmission"
+print_info "16) X2Go + Xfce Desktop"
+print_info "17) Plex Media Server"
+print_info "18) Observium"
+print_info "19) Linux-Dash"
+print_info "20) User Management"
+print_info "21) System Management"
+print_info "22) About"
 print_info "e) Exit"
 read choice
 case $choice in
@@ -2112,30 +2181,34 @@ configure_aria2
 break
 ;;
 15)
-install_remotedesktop
+install_transmission
 break
 ;;
 16)
-plex_setup
+install_remotedesktop
 break
 ;;
 17)
-setup_observium
+plex_setup
 break
 ;;
 18)
-get_linuxdash
+setup_observium
 break
 ;;
 19)
-user_management
+get_linuxdash
 break
 ;;
 20)
-system_management
+user_management
 break
 ;;
 21)
+system_management
+break
+;;
+22)
 script_about
 break
 ;;
@@ -2143,7 +2216,7 @@ e|E)
 break
 ;;
      *)
-     echo "That is not a valid choice, try a number from 1 to 21."
+     echo "That is not a valid choice, try a number from 1 to 22."
      ;;
 esac
 done

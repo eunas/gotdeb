@@ -1,3 +1,11 @@
+### 1.5.8 (2015-08-04)
+- Updated squid3 configuration for Debian 8
+- Updated OpenVPN Installer.
+- Updated Softether
+- Removed Lighttpd support for debian 7
+- Added Transmission BitTorrent client
+- Other Minor tweaks
+
 ### 1.5.7 (2015-06-22)
 - Added [Plex Media Server](https://github.com/eunas/essentials/wiki/plexmediaserver)
 - Updated Softether VPN to latest build
