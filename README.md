@@ -29,6 +29,7 @@ Run the script and follow the assistant:
 * Squid3 Proxy Server
 * sSMTP server
 * Aria2 + webui
+* Transmission BitTorrent Client
 * [X2Go + xfce Desktop](https://github.com/eunas/essentials/wiki/Remote-Desktop)
 * [Plex Media Server](https://github.com/eunas/essentials/wiki/plexmediaserver)
 * [Observium](https://github.com/eunas/essentials/wiki/Observium)
