@@ -224,10 +224,6 @@ function choice_menu {
 ############################################################
 function install_nginx {
     check_install nginx 1 "ngninx is already installed" v
-    if which lighttpd >/dev/null; then
-    print_warn "lighttpd is already installed. Aborting"
-    exit 1
-    fi
     choice_menu
     apt-get install curl -y &> /dev/null
     if which apache2 >/dev/null; then
@@ -327,62 +323,9 @@ then
 install_phpmyadmin
 fi
 }
-function install_lighttpd  {
-if [[ $(plain_version) = "2" ]];
-then
-clear
-print_info "Lighttpd is only supported on Debian 8"
-print_info "Aborting"
-exit 1
-fi
-check_install nginx 1 "nginx is already installed. Aborting"
-if which lighttpd >/dev/null; then
-print_warn "lighttpd is already installed. Aborting"
-fi
-choice_menu
-print_info "Installing lighttpd...."
-if which apache2 >/dev/null; then
-    print_info "Apache2 detected, please wait while we remove it..."
-    service apache2 stop &> /dev/null
-    apt-get --purge remove apache2 -y &> /dev/null
-    fi
-DEBIAN_FRONTEND=noninteractive apt-get upgrade -y &> /dev/null
-apt-get build-dep lighttpd -y &> /dev/null
-apt-get -f install libterm-readline-perl-perl curl -y &> /dev/null
-MACHINE_TYPE=`uname -m`
-curl http://download.opensuse.org/repositories/home:/stbuehler:/lighttpd-1.4.x-nightlies/Debian_8.0/Release.key | apt-key add -  &> /dev/null
-if [ ${MACHINE_TYPE} == 'x86_64' ]; then
-wget -O /tmp/ligttpd.deb http://download.opensuse.org/repositories/home:/stbuehler:/lighttpd-1.4.x/Debian_8.0/amd64/lighttpd_1.4.36-0.1_amd64.deb &> /dev/null
-else
-wget -O /tmp/ligttpd.deb http://download.opensuse.org/repositories/home:/stbuehler:/lighttpd-1.4.x/Debian_8.0/i386/lighttpd_1.4.36-0.1_i386.deb &> /dev/null
-fi
-dpkg -i /tmp/ligttpd.deb  &> /dev/null
-wait
-rm /tmp/ligttpd.deb
-sed -i "s|.*"mod_rewrite".*|        \"mod_rewrite\",|" /etc/lighttpd/lighttpd.conf
-service lighttpd restart &> /dev/null
-print_done "lighttpd successfully installed."
-wait
-if [[ $php = "y" ]]
-then
-install_php
-fi
-if [[ $db = "y" ]]
-then
-install_mariadb $dbpass
-fi
-if [[ $db1 = "y" ]]
-then
-install_mysql $dbpass
-fi
-if [[ $phpadm = "y" ]]
-then
-install_phpmyadmin
-fi
-}
 function install_php {
     print_info "Installing PHP ..."
-    if [ -x /usr/sbin/nginx ] || [ -x /usr/sbin/lighttpd ]; then
+    if [ -x /usr/sbin/nginx ]; then
     check_install php5-fpm 1 "php5-fpm is already installed" v
     if [ $(plain_version) = "2" ]; then
     dotdeb_php_repo
@@ -393,34 +336,12 @@ function install_php {
     sed -i "s|.*post_max_size = 8M.*|post_max_size = 128M|" /etc/php5/fpm/php.ini
     sed -i "s|.*reload signal USR2.*|        #reload signal USR2|" /etc/init/php5-fpm.conf
     wait
-    if which nginx >/dev/null; then
     touch /usr/share/nginx/html/info.php
 /bin/cat <<"EOM" >/usr/share/nginx/html/info.php
     <?php
     phpinfo();
     ?>
 EOM
-    else
-    >/etc/lighttpd/conf-available/15-fastcgi-php.conf
-/bin/cat <<"EOM" >/etc/lighttpd/conf-available/15-fastcgi-php.conf
-fastcgi.server += ( ".php" =>
-        ((
-                "socket" => "/var/run/php5-fpm.sock",
-                "broken-scriptfilename" => "enable"
-        ))
-)
-EOM
-    sed -i "s|.*server.document-root.*|server.document-root        = \"/var/www\"|"  /etc/lighttpd/lighttpd.conf
-    lighttpd-enable-mod fastcgi &> /dev/null
-    lighttpd-enable-mod fastcgi-php &> /dev/null
-    service lighttpd restart  &> /dev/null
-touch /var/www/info.php
-/bin/cat <<"EOM" >/var/www/info.php
-    <?php
-    phpinfo();
-    ?>
-EOM
-    fi
     service php5-fpm start
     print_done "PHP-FPM 5.6 successfully installed."
 else
@@ -464,7 +385,7 @@ print_done "MariaDB successfully installed."
 }
 function install_phpmyadmin {
 check_install phpmyadmin 1 "phpMyAdmin is already installed" v
-if [ -x /usr/sbin/nginx ] || [ -x /usr/sbin/lighttpd ]; then
+check_install nginx 0 "Nginx is not installed."
 check_install php5-fpm 0 "phpMyAdmin requires php, please install it"
 if ((! $(ps -ef | grep -v grep | grep mysql | wc -l) > 0 ))
 then
@@ -485,25 +406,14 @@ chown -R www-data:www-data /usr/share/phpmyadmin
 cp /usr/share/phpmyadmin/config.sample.inc.php  /usr/share/phpmyadmin/config.inc.php
 sed -i "s|.*blowfish_secret.*|\$cfg['blowfish_secret'] = '$(rand)';|" /usr/share/phpmyadmin/config.inc.php
 sed -i '/.*blowfish_secret.*/ a\$cfg['PmaNoRelation_DisableWarning'] = true;' /usr/share/phpmyadmin/config.inc.php
-if which lighttpd >/dev/null; then
-touch /etc/lighttpd/conf-enabled/phpmyadmin.conf
-echo 'alias.url += ( "/phpmyadmin" => "/usr/share/phpmyadmin/" )' >> /etc/lighttpd/conf-enabled/phpmyadmin.conf
-service lighttpd restart &> /dev/null
-else
 ln -s /usr/share/phpmyadmin/ /usr/share/nginx/html
 service nginx restart
-fi
 print_done "phpMyAdmin successfully installed."
-else
-print_warn "No webserver installed. Aborting"
-exit 1
-fi
 }
 function install_webserver  {
-print_info "Please choose a webserver to install"
+print_info "Please choose which version to install"
     print_info "1) nginx 1.8.x"
     print_info "2) nginx 1.9.x"
-    print_info "3) lighttpd 1.4.35"
     print_info "e) Exit"
     read -s -n 1 web
     if [[ $web != [Ee123] ]];
@@ -514,10 +424,6 @@ print_info "Please choose a webserver to install"
     if [[ $web = [12] ]];
     then
     install_nginx
-    fi
-    if [[ $web = "3" ]]
-    then
-    install_lighttpd
     fi
     if [[ $web = "e" ]]
     then
@@ -1458,7 +1364,7 @@ print_done "Essentials services installed"
 }
 function script_about {
 print_info "Interactive essentials install script for VPS or Dedicated servers."
-print_info "Build with low end systems in mind. Requires Debian version 7.x"
+print_info "Build with low end systems in mind. Requires Debian version 7.x or above"
 print_info "https://github.com/eunas/essentials"
 print_info ""
 print_info "Credits: Xeoncross, mikel, Falko Timme, road warrior, Nyr and many others"
@@ -1477,7 +1383,7 @@ if which aria2c >/dev/null; then
 print_warn "Aria2 is already installed."
 exit 1
 fi
-if [ -x /usr/sbin/nginx ] || [ -x /usr/sbin/lighttpd ]; then
+if [ -x /usr/sbin/nginx ]; then
 check_install php5-fpm 0 "Please install PHP"
 print_info "Installing Aria2 (This might take some time, please be patient...)"
 file="/etc/apt/sources.list.d/debian-testing.list"
@@ -1587,7 +1493,7 @@ print_warn "No webserver installed. Aborting"
 fi
 }
 function get_linuxdash {
-check_install nginx 0 "Please install nginx"
+check_install nginx 0 "Please install nginx first."
 check_install php5-fpm 0 "Please install PHP"
 apt-get install git curl -y
 mkdir /usr/share/nginx/html/monitor
@@ -1920,7 +1826,7 @@ esac
 done
 }
 function install_observium_server {
-if [ -x /usr/sbin/nginx ] || [ -x /usr/sbin/lighttpd ]; then
+if [ -x /usr/sbin/nginx ]; then
 check_install php5-fpm 0 "You need to install php"
 if ((! $(ps -ef | grep -v grep | grep mysql | wc -l) > 0 ))
 then
@@ -1955,17 +1861,10 @@ mkdir -p /opt/observium/rrd
 chown www-data:www-data /opt/observium/rrd
 cd /opt/observium
 php includes/update/update.php &> /dev/null
-if which lighttpd >/dev/null; then
-wget -P /etc/lighttpd/ https://raw.githubusercontent.com/eunas/essentials/master/resources/observium.conf --no-check-certificate &>  /dev/null
-echo "include \"observium.conf\"" >> /etc/lighttpd/lighttpd.conf
-sed -i "s|.*server.document-root.*|server.document-root        = \"/opt/observium/html\"|" /etc/lighttpd/lighttpd.conf
-service lighttpd restart &> /dev/null
-elif which nginx >/dev/null; then
 rm /etc/nginx/conf.d/default.conf
 wget -P /etc/nginx/conf.d/ https://raw.githubusercontent.com/eunas/essentials/master/resources/default.conf &> /dev/null
 sed -i "s|server_name _;|server_name "$(get_ip)";|" /etc/nginx/conf.d/default.conf
 service nginx restart &> /dev/null
-fi
 service php5-fpm restart &> /dev/null
 randp=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 12 | head -n 1)
 php adduser.php admin "$randp" 10
@@ -2093,34 +1992,120 @@ print_info ""
 print_info "----------------------------------------------------"
 print_info ""
 }
+function install_blog {
+check_sanity
+while true; do
+print_info "Choose a blog to install:"
+print_info "1) Ghost"
+print_info "e) Exit"
+read choice
+case $choice in
+1)
+install_ghost
+break
+;;
+e|E)
+break
+;;
+     *)
+     print_warn "That is not a valid choice."
+     ;;
+esac
+done
+}
+function install_ghost {
+check_install nginx 0 "Please install nginx first"
+clear
+print_info "========================================================================="
+print_info "Please notice that installing ghost on a lowend system can take 30+ min."
+print_info "Your current nginx configuration will be overwritten"
+print_info "========================================================================="
+print_info ""
+print_info "Enter Domain (Leave blank to use IP)"
+read ip
+if [ -z "$ip" ] ; then
+ip="$(get_external_ip)"
+fi
+print_info "Enter port (Leave blank to use default)"
+read p
+if [ -z "$p" ] ; then
+p="2368"
+fi
+clear
+print_info "Installing ghost...."
+apt-get update  &> /dev/null
+wait
+apt-get install zip curl -y  &> /dev/null
+wait
+curl -sL https://deb.nodesource.com/setup_0.12 | bash -  &> /dev/null
+wait
+apt-get install nodejs -y  &> /dev/null
+wait
+npm install npm@2.13.5 -g  &> /dev/null
+wait
+wget -O /tmp/ghost.zip https://ghost.org/zip/ghost-latest.zip &> /dev/null
+wait
+#===check which webserver is installed==
+mkdir -p /usr/share/ghost
+unzip /tmp/ghost.zip -d /usr/share/ghost &> /dev/null
+wait
+cd /usr/share/ghost
+npm install --production
+wait
+cp config.example.js config.js
+sed -i "s|.*http://my-ghost-blog.com.*|        url: 'http://$ip',|" /usr/share/ghost/config.js
+sed -i "s|            host: '127.0.0.1',|            host: '0.0.0.0',|" /usr/share/ghost/config.js
+sed -i "s|            port: '2368'|            port: '"$p"'|" /usr/share/ghost/config.js
+useradd -r ghost -U
+chown -R ghost:ghost /usr/share/ghost
+wget -O /etc/init.d/ghost https://raw.github.com/TryGhost/Ghost-Config/master/init.d/ghost  &> /dev/null
+sed -i "s|GHOST_ROOT=/var/www/ghost|GHOST_ROOT=/usr/share/ghost|" /etc/init.d/ghost
+chmod 755 /etc/init.d/ghost
+update-rc.d ghost defaults  &> /dev/null
+update-rc.d ghost enable  &> /dev/null
+/etc/init.d/ghost start  &> /dev/null
+wget -O /etc/nginx/conf.d/ghost.conf https://raw.githubusercontent.com/eunas/essentials/master/resources/ghost.conf --no-check-certificate  &> /dev/null
+wait
+sed -i "s|.*server_name.*|server_name "$ip";|" /etc/nginx/conf.d/ghost.conf
+sed -i "s|proxy_pass http://127.0.0.1:2368;|proxy_pass http://127.0.0.1:"$p";|" /etc/nginx/conf.d/ghost.conf
+mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default-backup
+service nginx restart  &> /dev/null
+clear
+print_done "======================================================"
+print_done "Ghost has been installed"
+print_done "You can access it at $ip"
+print_done "Find the admin area at $ip/ghost"
+print_done "======================================================"
+}
 ############################################################
 # Menu
 ############################################################
 check_sanity
 while true; do
 print_info "Choose what you want to install:"
-print_info "1) Webserver"
-print_info "2) PHP-FPM 5.6"
-print_info "3) MySQL Server"
-print_info "4) MariaDB server"
-print_info "5) phpMyAdmin"
-print_info "6) PureFTPD"
-print_info "7) Java 7 JDK"
-print_info "8) MCMyAdmin x64"
-print_info "9) pptp server"
-print_info "10) OpenVPN Server"
-print_info "11) SoftEther VPN"
-print_info "12) Squid3 Proxy Server"
-print_info "13) sSMTP server"
-print_info "14) Aria2 + Webui"
-print_info "15) Transmission"
-print_info "16) X2Go + Xfce Desktop"
-print_info "17) Plex Media Server"
-print_info "18) Observium"
-print_info "19) Linux-Dash"
-print_info "20) User Management"
-print_info "21) System Management"
-print_info "22) About"
+print_info "1) Nginx"
+print_info "2) Blogs"
+print_info "3) PHP-FPM 5.6"
+print_info "4) MySQL Server"
+print_info "5) MariaDB server"
+print_info "6) phpMyAdmin"
+print_info "7) PureFTPD"
+print_info "8) Java 7 JDK"
+print_info "9) MCMyAdmin x64"
+print_info "10) pptp server"
+print_info "11) OpenVPN Server"
+print_info "12) SoftEther VPN"
+print_info "13) Squid3 Proxy Server"
+print_info "14) sSMTP server"
+print_info "15) Aria2 + Webui"
+print_info "16) Transmission"
+print_info "17) X2Go + Xfce Desktop"
+print_info "18) Plex Media Server"
+print_info "19) Observium"
+print_info "20) Linux-Dash"
+print_info "21) User Management"
+print_info "22) System Management"
+print_info "23) About"
 print_info "e) Exit"
 read choice
 case $choice in
@@ -2129,86 +2114,90 @@ install_webserver
 break
 ;;
 2)
-install_php
+install_blog
 break
 ;;
 3)
-install_mysql
+install_php
 break
 ;;
 4)
-install_mariadb
+install_mysql
 break
 ;;
 5)
-install_phpmyadmin
+install_mariadb
 break
 ;;
 6)
-install_pureftpd
+install_phpmyadmin
 break
 ;;
 7)
-install_java
+install_pureftpd
 break
 ;;
 8)
-install_mcmyadmin
+install_java
 break
 ;;
 9)
-install_pptp
+install_mcmyadmin
 break
 ;;
 10)
-install_openvpn
+install_pptp
 break
 ;;
 11)
-install_softether
+install_openvpn
 break
 ;;
 12)
-install_squid3
+install_softether
 break
 ;;
 13)
-install_ssmtp
+install_squid3
 break
 ;;
 14)
-configure_aria2
+install_ssmtp
 break
 ;;
 15)
-install_transmission
+configure_aria2
 break
 ;;
 16)
-install_remotedesktop
+install_transmission
 break
 ;;
 17)
-plex_setup
+install_remotedesktop
 break
 ;;
 18)
-setup_observium
+plex_setup
 break
 ;;
 19)
-get_linuxdash
+setup_observium
 break
 ;;
 20)
-user_management
+get_linuxdash
 break
 ;;
 21)
-system_management
+user_management
 break
 ;;
 22)
+system_management
+break
+;;
+23)
 script_about
 break
 ;;
@@ -2216,7 +2205,7 @@ e|E)
 break
 ;;
      *)
-     echo "That is not a valid choice, try a number from 1 to 22."
+     print_warn "That is not a valid choice, try a number from 1 to 23."
      ;;
 esac
 done

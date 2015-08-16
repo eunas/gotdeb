@@ -1,3 +1,7 @@
+### 1.5.9 (2015-08-16)
+- Added Ghost blog with nginx as reverse proxy
+- Removed lighttpd
+
 ### 1.5.8 (2015-08-04)
 - Updated squid3 configuration for Debian 8
 - Updated OpenVPN Installer.

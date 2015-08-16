@@ -12,10 +12,11 @@ Run the script and follow the assistant:
 
 ###Script content
 
-* Webserver
+* Nginx
  * nginx 1.8.x
  * nginx 1.9.x
- * lighttpd 1.4.35
+* Blogs
+ * Ghost
 * PHP-FPM 5.6 (https://github.com/eunas/essentials/wiki/PHP-FPM)
 * MySQL Server
 * MariaDB server
