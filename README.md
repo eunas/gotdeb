@@ -17,6 +17,7 @@ Run the script and follow the assistant:
  * nginx 1.9.x
 * Blogs
  * Ghost
+ * Wordpress
 * PHP-FPM 5.6 (https://github.com/eunas/essentials/wiki/PHP-FPM)
 * MySQL Server
 * MariaDB server

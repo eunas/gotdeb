@@ -1,3 +1,6 @@
+### 1.5.10 (2015-08-18)
+- Added Wordpress install
+
 ### 1.5.9 (2015-08-16)
 - Added Ghost blog with nginx as reverse proxy
 - Removed lighttpd
