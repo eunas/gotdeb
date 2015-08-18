@@ -1997,11 +1997,16 @@ check_sanity
 while true; do
 print_info "Choose a blog to install:"
 print_info "1) Ghost"
+print_info "2) Wordpress"
 print_info "e) Exit"
 read choice
 case $choice in
 1)
 install_ghost
+break
+;;
+2)
+install_wp
 break
 ;;
 e|E)
@@ -2075,6 +2080,58 @@ print_done "======================================================"
 print_done "Ghost has been installed"
 print_done "You can access it at $ip"
 print_done "Find the admin area at $ip/ghost"
+print_done "======================================================"
+}
+function install_wp {
+check_install nginx 0 "Please install nginx"
+check_install php5-fpm 0 "You need to install php"
+if ((! $(ps -ef | grep -v grep | grep mysql | wc -l) > 0 ))
+then
+        print_warn "The MySQL server is stopped or not installed. Aborting";
+        exit 1
+
+fi
+clear
+rand=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 4 | head -n 1)
+u=wordpress_$rand
+p=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 12 | head -n 1)
+print_info "Enter mysql root password"
+read -s RP
+while ! mysql -u root -p$RP  -e 2>/dev/null ";" ; do
+       read -s -p "Can't connect, please retry: " RP
+done
+print_info "Installing Wordpress..."
+#EXPECTED_ARGS=3
+#E_BADARGS=65
+MYSQL=`which mysql`
+Q1="CREATE DATABASE IF NOT EXISTS wordpress;"
+Q2="GRANT USAGE ON *.* TO $u@localhost IDENTIFIED BY '$p';"
+Q3="GRANT ALL PRIVILEGES ON wordpress.* TO $u@localhost;"
+Q4="FLUSH PRIVILEGES;"
+SQL="${Q1}${Q2}${Q3}${Q4}"
+$MYSQL -uroot -p$RP -e "$SQL"
+wget -O /tmp/wordpress.tar.gz http://wordpress.org/latest.tar.gz  &> /dev/null
+wait
+tar -C /tmp/ -xvzf /tmp/wordpress.tar.gz  &> /dev/null
+wait
+cp -r /tmp/wordpress/* /usr/share/nginx/html/  &> /dev/null
+wait
+cp /usr/share/nginx/html/wp-config-sample.php /usr/share/nginx/html/wp-config.php  &> /dev/null
+wget -O /tmp/wp.keys https://api.wordpress.org/secret-key/1.1/salt/ &> /dev/null
+sed -i '/#@-/r /tmp/wp.keys' /usr/share/nginx/html/wp-config.php
+sed -i "/#@+/,/#@-/d" /usr/share/nginx/html/wp-config.php
+sed -i "s/database_name_here/wordpress/" /usr/share/nginx/html/wp-config.php
+sed -i "s/username_here/$u/" /usr/share/nginx/html/wp-config.php
+sed -i "s/password_here/$p/" /usr/share/nginx/html/wp-config.php
+mkdir /usr/share/nginx/html/wp-content/uploads
+chmod 775 /usr/share/nginx/html/wp-content/uploads
+rm -rf /tmp/*
+clear
+print_done "======================================================"
+print_done "Wordpress has been installed"
+print_done "You can access it at $(get_ip) or your domain."
+print_done "Database user: $u"
+print_done "Database password: $p"
 print_done "======================================================"
 }
 ############################################################
