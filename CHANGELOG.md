@@ -1,3 +1,10 @@
+### 1.6 (2015-10-03)
+- Added [HHVM](http://hhvm.com/) (64 bit OS support only)
+- Added Dotdeb PHP 7 repo for Debian 8
+- MariaDB now checks for OS version, so the correct repo is used.
+- Updated Softether to version 4.19 Build 9578 beta
+- Minor tweaks and fixes
+
 ### 1.5.10 (2015-08-18)
 - Added Wordpress install
 

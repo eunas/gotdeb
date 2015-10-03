@@ -18,7 +18,10 @@ Run the script and follow the assistant:
 * Blogs
  * Ghost
  * Wordpress
-* PHP-FPM 5.6 (https://github.com/eunas/essentials/wiki/PHP-FPM)
+* PHP (https://github.com/eunas/essentials/wiki/PHP-FPM)
+ * PHP-FPM 5.6
+ * PHP-FPM 7.0
+ * HHVM
 * MySQL Server
 * MariaDB server
 * [phpMyAdmin](https://github.com/eunas/essentials/wiki/phpMyAdmin)

@@ -3,18 +3,6 @@
 ############################################################
 # Core
 ############################################################
-function check_sanity {
-	# Do some sanity checking.
-	if [ $(/usr/bin/id -u) != "0" ]
-	then
-		die 'Must be run by root user'
-	fi
-
-	if [ ! -f /etc/debian_version ]
-	then
-		die "Distribution is not supported. Debian 7.x required.)"
-	fi
-}
 function check_install {
         if [ $(dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -c "ok installed") -eq $2 ]
         then
@@ -28,7 +16,6 @@ function check_install {
         exit 1
         fi
 }
-
 function print_info {
 	echo -n -e '\e[1;33m'
 	echo -n $1
@@ -47,6 +34,22 @@ function print_done {
 function die {
 	echo "ERROR: $1" > /dev/null 1>&2
 	exit 1
+}
+function check_sanity {
+	# Do some sanity checking.
+	if [ $(/usr/bin/id -u) != "0" ]
+	then
+		die 'Must be run by root user'
+	fi
+
+	if [ ! -f /etc/debian_version ]
+	then
+		die "Distribution is not supported. Debian 7 or above required."
+	fi
+MACHINE_TYPE=`uname -m`
+    if [[ ${MACHINE_TYPE} == arm* ]] ; then
+        die "ARM processors are not supported."
+    fi
 }
 function get_ip {
 IP=$(ifconfig | grep 'inet addr:' | grep -v inet6 | grep -vE '127\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}' | cut -d: -f2 | awk '{ print $1}' | head -1)
@@ -71,9 +74,9 @@ function plain_version {
 VERSION=$(sed 's/\..*//' /etc/debian_version)
 if [ $VERSION -gt "7" ];
   then
-    echo "1"
+    echo "8"
   else
-    echo "2"
+    echo "7"
 fi
 }
 function update_upgrade {
@@ -100,6 +103,40 @@ fi
 apt-get update &> /dev/null
 wait
 }
+function dotdeb_php_7_repo {
+file="/etc/apt/sources.list.d/dotdeb_php.list"
+if [ ! -f "$file" ]
+then
+touch /etc/apt/sources.list.d/dotdeb_php.list
+fi
+if [ $(plain_version) = "8" ];
+then
+echo "deb http://packages.dotdeb.org jessie all" >> /etc/apt/sources.list.d/dotdeb_php.list
+echo "deb-src http://packages.dotdeb.org jessie all" >> /etc/apt/sources.list.d/dotdeb_php.list
+fi
+wget http://www.dotdeb.org/dotdeb.gpg &> /dev/null
+apt-key add dotdeb.gpg &> /dev/null
+wait
+rm dotdeb.gpg
+apt-get update &> /dev/null
+wait
+}
+function hhvm_repo {
+file="/etc/apt/sources.list.d/hhvm.list"
+if [ ! -f "$file" ]
+then
+touch /etc/apt/sources.list.d/hhvm.list
+fi
+if [ $(plain_version) = "7" ];
+then
+echo deb "http://dl.hhvm.com/debian wheezy main" >> /etc/apt/sources.list.d/hhvm.list
+else
+echo deb "http://dl.hhvm.com/debian jessie main" >> /etc/apt/sources.list.d/hhvm.list
+fi
+apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 0x5a16e7281be7a449  &> /dev/null
+wait
+apt-get update &> /dev/null
+}
 function nginx_repo {
 print_info "Installing nginx..."
 file="/etc/apt/sources.list.d/nginx.list"
@@ -108,19 +145,19 @@ then
 touch /etc/apt/sources.list.d/nginx.list
 fi
 >/etc/apt/sources.list.d/nginx.list
-if [[ $web = "1" ]] && [[ $(plain_version) = "2" ]];
+if [[ $web = "1" ]] && [[ $(plain_version) = "7" ]];
 then
 echo "deb http://nginx.org/packages/debian/ wheezy nginx" >> /etc/apt/sources.list.d/nginx.list
 echo "deb-src http://nginx.org/packages/debian/ wheezy nginx" >> /etc/apt/sources.list.d/nginx.list
-elif [[ $web = "1" ]] && [[ $(plain_version) = "1" ]];
+elif [[ $web = "1" ]] && [[ $(plain_version) = "8" ]];
 then
 echo "deb http://nginx.org/packages/debian/ jessie nginx" >> /etc/apt/sources.list.d/nginx.list
 echo "deb-src http://nginx.org/packages/debian/ jessie nginx" >> /etc/apt/sources.list.d/nginx.list
-elif [[ $web = "2" ]] && [[ $(plain_version) = "2" ]];
+elif [[ $web = "2" ]] && [[ $(plain_version) = "7" ]];
 then
 echo "deb http://nginx.org/packages/mainline/debian/ wheezy nginx" >> /etc/apt/sources.list.d/nginx.list
 echo "deb-src http://nginx.org/packages/mainline/debian/ wheezy nginx" >> /etc/apt/sources.list.d/nginx.list
-elif [[ $web = "2" ]] && [[ $(plain_version) = "1" ]];
+elif [[ $web = "2" ]] && [[ $(plain_version) = "8" ]];
 then
 echo "deb http://nginx.org/packages/mainline/debian/ jessie nginx" >> /etc/apt/sources.list.d/nginx.list
 echo "deb-src http://nginx.org/packages/mainline/debian/ jessie nginx" >> /etc/apt/sources.list.d/nginx.list
@@ -137,12 +174,18 @@ file="/etc/apt/sources.list.d/mariadb.list"
 if [ ! -f "$file" ]
 then
 touch /etc/apt/sources.list.d/mariadb.list
+fi
+if [[ $web = "1" ]] && [[ $(plain_version) = "7" ]];
+then
 echo "deb http://mirror.i3d.net/pub/mariadb/repo/10.0/debian wheezy main" >> /etc/apt/sources.list.d/mariadb.list
-echo "deb-src http://mirror.i3d.net/pub/mariadb/repo/10.0/debian wheezy main" >> /etc/apt/sources.list.d/mariadb.list
+else
+echo "deb http://mirror.i3d.net/pub/mariadb/repo/10.0/debian jessie main" >> /etc/apt/sources.list.d/mariadb.list
+fi
 apt-key adv --recv-keys --keyserver keyserver.ubuntu.com 0xcbcb082a1bb943db &> /dev/null
+apt-get update  &> /dev/null
+apt-get install software-properties-common -y &> /dev/null
 wait
 apt-get update &> /dev/null
-fi
 wait
 }
 function mysql_opt {
@@ -162,7 +205,7 @@ rand=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 4 | head -n 1)
 echo "$rand"
 }
 function choice_menu {
-    print_info "Install PHP-FPM ? (y/n)"
+    print_info "Install PHP or HHVM ? (y/n)"
     read -s -n 1 php
     if [[ $php != [YyNn] ]];
     then
@@ -170,7 +213,23 @@ function choice_menu {
     print_warn "Error in input, try again"
     exit 1
     fi
-
+if [ $php = "y" ]; then
+    print_info "Please choose which PHP version to install"
+    print_info "1) PHP 5.6"
+    if [ $(plain_version) = "8" ]; then
+    print_info "2) PHP 7.0 Development"
+    fi
+MACHINE_TYPE=`uname -m`
+if [ ${MACHINE_TYPE} == 'x86_64' ]; then
+    print_info "3) HHVM"
+fi
+    read -s -n 1 phpv
+    if [[ $phpv != [Ee123] ]];
+    then
+    print_warn "Invalid choice, try again"
+    php_version
+    fi
+    fi
     print_info "Install MariaDB Server ? (y/n)"
     read -s -n 1 db
     if [[ $db != [YyNn] ]];
@@ -306,9 +365,14 @@ sed -i '/    gzip_http_version 1.1;/ a\    gzip_types text/plain text/css applic
 sed -i '/.*    sendfile.*;/ a\    server_tokens   off; ' /etc/nginx/nginx.conf
 service nginx restart &>  /dev/null
     print_done "ngninx successfully installed."
-if [[ $php = "y" ]]
-then
+if [ $php = "y" ] && [ $phpv = "1" ] ; then
 install_php
+elif
+[ $php = "y" ] && [ $phpv = "2" ] ; then
+install_php7
+elif
+[ $php = "y" ] && [ $phpv = "3" ] ; then
+install_hhvm
 fi
 if [[ $db = "y" ]]
 then
@@ -327,7 +391,7 @@ function install_php {
     print_info "Installing PHP ..."
     if [ -x /usr/sbin/nginx ]; then
     check_install php5-fpm 1 "php5-fpm is already installed" v
-    if [ $(plain_version) = "2" ]; then
+    if [ $(plain_version) = "7" ]; then
     dotdeb_php_repo
     fi
     DEBIAN_FRONTEND=noninteractive apt-get install php5-fpm php5-common php5-mysqlnd php5-sqlite php5-mcrypt php5-curl curl php5-cli php5-gd -y &> /dev/null
@@ -335,15 +399,64 @@ function install_php {
     sed -i "s|.*upload_max_filesize = 2M.*|upload_max_filesize = 128M|" /etc/php5/fpm/php.ini
     sed -i "s|.*post_max_size = 8M.*|post_max_size = 128M|" /etc/php5/fpm/php.ini
     sed -i "s|.*reload signal USR2.*|        #reload signal USR2|" /etc/init/php5-fpm.conf
-    wait
     touch /usr/share/nginx/html/info.php
 /bin/cat <<"EOM" >/usr/share/nginx/html/info.php
     <?php
     phpinfo();
     ?>
 EOM
+    wait
     service php5-fpm start
     print_done "PHP-FPM 5.6 successfully installed."
+else
+print_warn "No webserver installed. Aborting"
+exit 1
+fi
+}
+function install_php7 {
+    print_info "Installing PHP 7 ..."
+    if [ -x /usr/sbin/nginx ]; then
+    check_install php7-fpm 1 "php7-fpm is already installed" v
+    dotdeb_php_7_repo
+    wait
+    DEBIAN_FRONTEND=noninteractive apt-get install php-mysql php7.0 php7.0-fpm php7.0-common curl php7.0-cli -y &> /dev/null
+    sed -i "s|.*;cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php/7.0/fpm/php.ini
+    sed -i "s|.*upload_max_filesize = 2M.*|upload_max_filesize = 128M|" /etc/php/7.0/fpm/php.ini
+    sed -i "s|.*post_max_size = 8M.*|post_max_size = 128M|" /etc/php/7.0/fpm/php.ini
+    sed -i "s|        fastcgi_pass unix:/var/run/php5-fpm.sock;|        fastcgi_pass unix:/var/run/php/php7.0-fpm.sock;|" /etc/nginx/conf.d/default.conf
+    touch /usr/share/nginx/html/info.php
+/bin/cat <<"EOM" >/usr/share/nginx/html/info.php
+    <?php
+    phpinfo();
+    ?>
+EOM
+    wait
+    service php7.0-fpm start
+    print_done "PHP-FPM 7.0 successfully installed."
+else
+print_warn "No webserver installed. Aborting"
+exit 1
+fi
+}
+function install_hhvm {
+    print_info "Installing HHVM ..."
+    if [ -x /usr/sbin/nginx ]; then
+    hhvm_repo
+    wait
+    apt-get install php5-mysql hhvm curl -y &> /dev/null
+    sed -i "s|        fastcgi_pass unix:/var/run/php5-fpm.sock;|        fastcgi_pass unix:/var/run/hhvm/hhvm.sock;|" /etc/nginx/conf.d/default.conf
+    sed -i '/hhvm.server.port = 9000/ a\hhvm.server.file_socket=/var/run/hhvm/hhvm.sock' /etc/hhvm/server.ini
+    sed -i "s|hhvm.server.port = 9000|;hhvm.server.port = 9000|" /etc/hhvm/server.ini
+    touch /usr/share/nginx/html/info.php
+/bin/cat <<"EOM" >/usr/share/nginx/html/info.php
+    <?php
+    phpinfo();
+    ?>
+EOM
+    wait
+    service hhvm restart
+    service nginx restart
+    print_done "HHVM successfully installed."
 else
 print_warn "No webserver installed. Aborting"
 exit 1
@@ -386,7 +499,10 @@ print_done "MariaDB successfully installed."
 function install_phpmyadmin {
 check_install phpmyadmin 1 "phpMyAdmin is already installed" v
 check_install nginx 0 "Nginx is not installed."
-check_install php5-fpm 0 "phpMyAdmin requires php, please install it"
+if [[ ! -f /usr/sbin/php-fpm5 ]] && [[ ! -f /usr/sbin/php-fpm7.0 ]] && [[ ! -f /usr/bin/hhvm ]]; then
+ print_warn "PHP or HHVM is not installed."
+exit 1
+fi
 if ((! $(ps -ef | grep -v grep | grep mysql | wc -l) > 0 ))
 then
         print_warn "The MySQL server is stopped or not installed.";
@@ -407,6 +523,13 @@ cp /usr/share/phpmyadmin/config.sample.inc.php  /usr/share/phpmyadmin/config.inc
 sed -i "s|.*blowfish_secret.*|\$cfg['blowfish_secret'] = '$(rand)';|" /usr/share/phpmyadmin/config.inc.php
 sed -i '/.*blowfish_secret.*/ a\$cfg['PmaNoRelation_DisableWarning'] = true;' /usr/share/phpmyadmin/config.inc.php
 ln -s /usr/share/phpmyadmin/ /usr/share/nginx/html
+if [[ -f /usr/sbin/php-fpm7.0 ]]; then
+chown -R www-data:www-data /var/lib/php/sessions
+fi
+if [[ -f /usr/bin/hhvm ]]; then
+echo "\$cfg['Servers'][\$i]['port'] = '3306';" >> /usr/share/phpmyadmin/config.inc.php
+sed -i "s|.*localhost.*|\$cfg['Servers'][\$i]['host'] = '127.0.0.1';|" /usr/share/phpmyadmin/config.inc.php
+fi
 service nginx restart
 print_done "phpMyAdmin successfully installed."
 }
@@ -1055,7 +1178,7 @@ request_header_access User-Agent allow all
 request_header_access Cookie allow all
 request_header_access All deny all
 END
-if [ $(plain_version) = "1" ]; then
+if [ $(plain_version) = "8" ]; then
 sed -i "s|.*auth_param basic program.*|auth_param basic program /usr/lib/squid3/basic_ncsa_auth /etc/squid3/squid_passwd|" /etc/squid3/squid.conf
 fi
 htpasswd -b -c /etc/squid3/squid_passwd $u $p
@@ -1165,8 +1288,17 @@ print_done "ssmtp successfully installed."
 break
 ;;
 3)
-check_install php5-fpm 0 "PHP is not installed."
+if [[ ! -f /usr/sbin/php-fpm5 ]] && [[ ! -f /usr/sbin/php-fpm7.0 ]] && [[ ! -f /usr/bin/hhvm ]]; then
+ print_warn "PHP or HHVM is not installed."
+exit 1
+fi
+if [[ -f /usr/sbin/php-fpm5 ]]; then
 sed -i "s|.*sendmail_path.*|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/fpm/php.ini
+elif [[ -f /usr/sbin/php-fpm7.0 ]]; then
+sed -i "s|.*sendmail_path.*|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php/7.0/fpm/php.ini
+elif [[ -f /usr/bin/hhvm ]]; then
+echo "sendmail_path = /usr/sbin/ssmtp -t" >> /etc/hhvm/php.ini
+fi
 print_done "ssmtp successfully configured."
 break
 ;;
@@ -1384,7 +1516,10 @@ print_warn "Aria2 is already installed."
 exit 1
 fi
 if [ -x /usr/sbin/nginx ]; then
-check_install php5-fpm 0 "Please install PHP"
+if [[ ! -f /usr/sbin/php-fpm5 ]] && [[ ! -f /usr/sbin/php-fpm7.0 ]] && [[ ! -f /usr/bin/hhvm ]]; then
+ print_warn "PHP or HHVM is not installed."
+exit 1
+fi
 print_info "Installing Aria2 (This might take some time, please be patient...)"
 file="/etc/apt/sources.list.d/debian-testing.list"
 if [ ! -f "$file" ]
@@ -1494,7 +1629,10 @@ fi
 }
 function get_linuxdash {
 check_install nginx 0 "Please install nginx first."
-check_install php5-fpm 0 "Please install PHP"
+if [[ ! -f /usr/sbin/php-fpm5 ]] && [[ ! -f /usr/sbin/php-fpm7.0 ]] && [[ ! -f /usr/bin/hhvm ]]; then
+ print_warn "PHP or HHVM is not installed."
+exit 1
+fi
 apt-get install git curl -y
 mkdir /usr/share/nginx/html/monitor
 git clone https://github.com/afaqurk/linux-dash /usr/share/nginx/html/monitor
@@ -1522,13 +1660,13 @@ mkdir /tmp/softether
 print_info "Downloading and installing SoftEther VPN Server...."
 MACHINE_TYPE=`uname -m`
 if [ ${MACHINE_TYPE} == 'x86_64' ]; then
-wget -O /tmp/softether/softether-vpnserver_x64.tar.gz http://www.softether-download.com/files/softether/v4.18-9570-rtm-2015.07.26-tree/Linux/SoftEther_VPN_Server/64bit_-_Intel_x64_or_AMD64/softether-vpnserver-v4.18-9570-rtm-2015.07.26-linux-x64-64bit.tar.gz &> /dev/null
+wget -O /tmp/softether/softether-vpnserver_x64.tar.gz http://www.softether-download.com/files/softether/v4.19-9578-beta-2015.09.15-tree/Linux/SoftEther_VPN_Server/64bit_-_Intel_x64_or_AMD64/softether-vpnserver-v4.19-9578-beta-2015.09.15-linux-x64-64bit.tar.gz &> /dev/null
 wait
 cd /tmp/softether
 tar zxf softether-vpnserver_x64.tar.gz
 wait
 else
-wget -O /tmp/softether/softether-vpnserver_x86.tar.gz http://www.softether-download.com/files/softether/v4.18-9570-rtm-2015.07.26-tree/Linux/SoftEther_VPN_Server/32bit_-_Intel_x86/softether-vpnserver-v4.18-9570-rtm-2015.07.26-linux-x86-32bit.tar.gz &> /dev/null
+wget -O /tmp/softether/softether-vpnserver_x86.tar.gz http://www.softether-download.com/files/softether/v4.19-9578-beta-2015.09.15-tree/Linux/SoftEther_VPN_Server/32bit_-_Intel_x86/softether-vpnserver-v4.19-9578-beta-2015.09.15-linux-x86-32bit.tar.gz &> /dev/null
 wait
 cd /tmp/softether
 tar zxf softether-vpnserver_x86.tar.gz
@@ -1704,7 +1842,7 @@ file="/etc/apt/sources.list.d/x2go.list"
 if [ ! -f "$file" ]
 then
 touch /etc/apt/sources.list.d/x2go.list
-if [ $(plain_version) = "2" ]; then
+if [ $(plain_version) = "7" ]; then
 echo "deb http://packages.x2go.org/debian wheezy main" >> /etc/apt/sources.list.d/x2go.list
 echo "deb-src http://packages.x2go.org/debian wheezy main" >> /etc/apt/sources.list.d/x2go.list
 else
@@ -1827,7 +1965,10 @@ done
 }
 function install_observium_server {
 if [ -x /usr/sbin/nginx ]; then
-check_install php5-fpm 0 "You need to install php"
+if [[ ! -f /usr/sbin/php-fpm5 ]] && [[ ! -f /usr/sbin/php-fpm7.0 ]] && [[ ! -f /usr/bin/hhvm ]]; then
+ print_warn "PHP or HHVM is not installed."
+exit 1
+fi
 if ((! $(ps -ef | grep -v grep | grep mysql | wc -l) > 0 ))
 then
         print_warn "The MySQL server is stopped or not installed.";
@@ -1993,7 +2134,6 @@ print_info "----------------------------------------------------"
 print_info ""
 }
 function install_blog {
-check_sanity
 while true; do
 print_info "Choose a blog to install:"
 print_info "1) Ghost"
@@ -2084,7 +2224,10 @@ print_done "======================================================"
 }
 function install_wp {
 check_install nginx 0 "Please install nginx"
-check_install php5-fpm 0 "You need to install php"
+if [[ ! -f /usr/sbin/php-fpm5 ]] && [[ ! -f /usr/sbin/php-fpm7.0 ]] && [[ ! -f /usr/bin/hhvm ]]; then
+ print_warn "PHP or HHVM is not installed."
+exit 1
+fi
 if ((! $(ps -ef | grep -v grep | grep mysql | wc -l) > 0 ))
 then
         print_warn "The MySQL server is stopped or not installed. Aborting";
