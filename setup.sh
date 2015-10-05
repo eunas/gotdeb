@@ -419,7 +419,7 @@ function install_php7 {
     check_install php7-fpm 1 "php7-fpm is already installed" v
     dotdeb_php_7_repo
     wait
-    DEBIAN_FRONTEND=noninteractive apt-get install php-mysql php7.0 php7.0-fpm php7.0-common curl php7.0-cli -y &> /dev/null
+    DEBIAN_FRONTEND=noninteractive apt-get install php5-mysql php7.0 php7.0-fpm php7.0-common curl php7.0-cli -y &> /dev/null
     sed -i "s|.*;cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php/7.0/fpm/php.ini
     sed -i "s|.*upload_max_filesize = 2M.*|upload_max_filesize = 128M|" /etc/php/7.0/fpm/php.ini
     sed -i "s|.*post_max_size = 8M.*|post_max_size = 128M|" /etc/php/7.0/fpm/php.ini
