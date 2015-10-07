@@ -1,13 +1,13 @@
-##Essentials
+###GotDeb
 
-Interactive essentials install script for VPS or Dedicated servers.
+Interactive bash script for VPS or Dedicated servers.
 Build with low end systems in mind.
 Requires Debian version 7.x or 8.x
 
 ###Installation
 Run the script and follow the assistant:
 
-`wget https://raw.githubusercontent.com/eunas/essentials/master/setup.sh --no-check-certificate`
+`wget https://raw.githubusercontent.com/eunas/gotdeb/master/setup.sh --no-check-certificate`
 `chmod +x setup.sh && ./setup.sh`
 
 ###Script content
@@ -18,26 +18,26 @@ Run the script and follow the assistant:
 * Blogs
  * Ghost
  * Wordpress
-* PHP (https://github.com/eunas/essentials/wiki/PHP-FPM)
+* PHP (https://github.com/eunas/gotdeb/wiki/PHP-FPM)
  * PHP-FPM 5.6
  * PHP-FPM 7.0
  * HHVM
 * MySQL Server
 * MariaDB server
-* [phpMyAdmin](https://github.com/eunas/essentials/wiki/phpMyAdmin)
+* [phpMyAdmin](https://github.com/eunas/gotdeb/wiki/phpMyAdmin)
 * PureFTPD (FTPS enabled)
 * Java 7 JDK
 * MCMyAdmin x64
 * pptp server
 * OpenVPN Server (Works on NAT)
-* [SoftEtherVPS (Works on NAT)](https://github.com/eunas/essentials/wiki/SoftEtherVPN)
+* [SoftEtherVPS (Works on NAT)](https://github.com/eunas/gotdeb/wiki/SoftEtherVPN)
 * Squid3 Proxy Server
 * sSMTP server
 * Aria2 + webui
 * Transmission BitTorrent Client
-* [X2Go + xfce Desktop](https://github.com/eunas/essentials/wiki/Remote-Desktop)
-* [Plex Media Server](https://github.com/eunas/essentials/wiki/plexmediaserver)
-* [Observium](https://github.com/eunas/essentials/wiki/Observium)
+* [X2Go + xfce Desktop](https://github.com/eunas/gotdeb/wiki/Remote-Desktop)
+* [Plex Media Server](https://github.com/eunas/gotdeb/wiki/plexmediaserver)
+* [Observium](https://github.com/eunas/gotdeb/wiki/Observium)
  * Server
  * Client
 * Linux Dash server monitor
@@ -50,7 +50,7 @@ Run the script and follow the assistant:
  * Install essentials packages
  * Update timezone
  * System tests
- * [Secure System](https://github.com/eunas/essentials/wiki/Secure-System)
+ * [Secure System](https://github.com/eunas/gotdeb/wiki/Secure-System)
  * Speedtest.net
  * Get OS Version
 * About
