@@ -1,4 +1,4 @@
-###GotDeb
+###[GotDeb](https://gotdeb.com)
 
 Interactive bash script for VPS or Dedicated servers.
 Build with low end systems in mind.
@@ -7,7 +7,9 @@ Requires Debian version 7.x or 8.x
 ###Installation
 Run the script and follow the assistant:
 
-`wget https://raw.githubusercontent.com/eunas/gotdeb/master/setup.sh --no-check-certificate`
+`wget https://gotdeb.com/setup.sh --no-check-certificate`
+OR
+wget https://raw.githubusercontent.com/eunas/gotdeb/master/setup.sh --no-check-certificate
 `chmod +x setup.sh && ./setup.sh`
 
 ###Script content
@@ -18,7 +20,7 @@ Run the script and follow the assistant:
 * Blogs
  * Ghost
  * Wordpress
-* PHP (https://github.com/eunas/gotdeb/wiki/PHP-FPM)
+* [PHP](https://github.com/eunas/gotdeb/wiki/PHP-FPM)
  * PHP-FPM 5.6
  * PHP-FPM 7.0
  * HHVM

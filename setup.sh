@@ -1,5 +1,5 @@
 #!/bin/bash
-#############github.com/eunas/essentials####################
+########gotdeb.com#########github.com/eunas/gotdeb##########
 ############################################################
 # Core
 ############################################################
@@ -1495,9 +1495,9 @@ apt-get install -y nano rcconf lftp unzip  &> /dev/null
 print_done "Essentials services installed"
 }
 function script_about {
-print_info "Interactive essentials install script for VPS or Dedicated servers."
+print_info "Interactive bash script for VPS or Dedicated servers."
 print_info "Build with low end systems in mind. Requires Debian version 7.x or above"
-print_info "https://github.com/eunas/essentials"
+print_info "https://gotdeb.com"
 print_info ""
 print_info "Credits: Xeoncross, mikel, Falko Timme, road warrior, Nyr and many others"
 }
@@ -1832,7 +1832,7 @@ print_info "Restarting services..."
 fi
 rm -rf /tmp/softether
 print_done "SoftEtherVPN has been installed"
-print_done "Please see the wiki https://github.com/eunas/essentials/wiki/SoftEtherVPN"
+print_done "Please see the wiki https://github.com/eunas/gotdeb/wiki/SoftEtherVPN"
 print_done "For further information."
 }
 function install_remotedesktop {
@@ -1932,7 +1932,7 @@ curl http://shell.ninthgate.se/packages/shell-ninthgate-se-keyring.key | apt-key
 wait
 apt-get update &> /dev/null && apt-get install plexmediaserver -y  &> /dev/null
 wait
-wget --no-check-certificate -O /etc/init.d/plexmediaserver https://raw.githubusercontent.com/eunas/essentials/master/resources/plexmediaserver  &> /dev/null
+wget --no-check-certificate -O /etc/init.d/plexmediaserver https://raw.githubusercontent.com/eunas/gotdeb/master/resources/plexmediaserver  &> /dev/null
 wait
 chmod +x /etc/init.d/plexmediaserver
 update-rc.d plexmediaserver defaults &> /dev/nul
@@ -2003,7 +2003,7 @@ chown www-data:www-data /opt/observium/rrd
 cd /opt/observium
 php includes/update/update.php &> /dev/null
 rm /etc/nginx/conf.d/default.conf
-wget -P /etc/nginx/conf.d/ https://raw.githubusercontent.com/eunas/essentials/master/resources/default.conf &> /dev/null
+wget -P /etc/nginx/conf.d/ https://raw.githubusercontent.com/eunas/gotdeb/master/resources/default.conf &> /dev/null
 sed -i "s|server_name _;|server_name "$(get_ip)";|" /etc/nginx/conf.d/default.conf
 service nginx restart &> /dev/null
 service php5-fpm restart &> /dev/null
@@ -2069,7 +2069,7 @@ syscontact $CONTACT
 extend .1.3.6.1.4.1.2021.7890.1 distro /usr/bin/distro
 END
 #get distro checking script
-wget -O distro https://raw.githubusercontent.com/eunas/essentials/master/resources/observium_distro --no-check-certificate &> /dev/null
+wget -O distro https://raw.githubusercontent.com/eunas/gotdeb/master/resources/observium_distro --no-check-certificate &> /dev/null
 mv distro /usr/bin/distro
 chmod +x /usr/bin/distro
 /etc/init.d/snmpd restart &> /dev/null
@@ -2209,7 +2209,7 @@ chmod 755 /etc/init.d/ghost
 update-rc.d ghost defaults  &> /dev/null
 update-rc.d ghost enable  &> /dev/null
 /etc/init.d/ghost start  &> /dev/null
-wget -O /etc/nginx/conf.d/ghost.conf https://raw.githubusercontent.com/eunas/essentials/master/resources/ghost.conf --no-check-certificate  &> /dev/null
+wget -O /etc/nginx/conf.d/ghost.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/ghost.conf --no-check-certificate  &> /dev/null
 wait
 sed -i "s|.*server_name.*|server_name "$ip";|" /etc/nginx/conf.d/ghost.conf
 sed -i "s|proxy_pass http://127.0.0.1:2368;|proxy_pass http://127.0.0.1:"$p";|" /etc/nginx/conf.d/ghost.conf
