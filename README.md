@@ -7,10 +7,10 @@ Requires Debian version 7.x or 8.x
 ###Installation
 Run the script and follow the assistant:
 
-`wget https://gotdeb.com/setup.sh --no-check-certificate`
+`wget https://gotdeb.com/setup.sh --no-check-certificate`<br />
 `chmod +x setup.sh && ./setup.sh`
 ####OR
-`wget https://raw.githubusercontent.com/eunas/gotdeb/master/setup.sh --no-check-certificate`
+`wget https://raw.githubusercontent.com/eunas/gotdeb/master/setup.sh --no-check-certificate`<br />
 `chmod +x setup.sh && ./setup.sh`
 
 ###Script content
