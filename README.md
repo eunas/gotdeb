@@ -8,8 +8,8 @@ Requires Debian version 7.x or 8.x
 Run the script and follow the assistant:
 
 `wget https://gotdeb.com/setup.sh --no-check-certificate`
-OR
-wget https://raw.githubusercontent.com/eunas/gotdeb/master/setup.sh --no-check-certificate
+####OR
+`wget https://raw.githubusercontent.com/eunas/gotdeb/master/setup.sh --no-check-certificate`
 `chmod +x setup.sh && ./setup.sh`
 
 ###Script content
