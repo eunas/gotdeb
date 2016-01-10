@@ -1,3 +1,10 @@
+### 1.6.1 (2016-01-10)
+- Fixed typo in PHP 7 install.
+- Fixed line break issue in Dnsmasq config
+- Fetching the external IP correctly on NAT VPS servers
+- Updated OpenVPN Installer.
+- Updated Softether to version Ver 4.19 Build 9599 Beta
+
 ### 1.6 (2015-10-03)
 - Added [HHVM](http://hhvm.com/) (64 bit OS support only)
 - Added Dotdeb PHP 7 repo for Debian 8
