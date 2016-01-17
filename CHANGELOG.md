@@ -1,3 +1,9 @@
+### 1.6.2 (2016-01-17)
+- Fixed errors in PHP 7 and PHP 5.6 install
+- Added experimental [Let's Encrypt](https://github.com/eunas/gotdeb/wiki/lets-encrypt) support for nginx
+- Updated MariaDB repo to version 10.1
+- Other tweaks and fixes
+
 ### 1.6.1 (2016-01-10)
 - Fixed typo in PHP 7 install.
 - Fixed line break issue in Dnsmasq config
