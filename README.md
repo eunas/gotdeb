@@ -18,6 +18,7 @@ Run the script and follow the assistant:
 * Nginx
  * nginx 1.8.x
  * nginx 1.9.x
+* [Let's Encrypt](https://github.com/eunas/gotdeb/wiki/lets-encrypt)
 * Blogs
  * Ghost
  * Wordpress
