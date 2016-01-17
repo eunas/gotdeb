@@ -131,6 +131,7 @@ wait
 apt-get update &> /dev/null
 }
 function nginx_repo {
+clear
 print_info "Installing nginx..."
 file="/etc/apt/sources.list.d/nginx.list"
 if [ ! -f "$file" ]
@@ -167,12 +168,13 @@ file="/etc/apt/sources.list.d/mariadb.list"
 if [ ! -f "$file" ]
 then
 touch /etc/apt/sources.list.d/mariadb.list
+apt-get install software-properties-common -y &> /dev/null
 fi
 if [[ $web = "1" ]] && [[ $(plain_version) = "7" ]];
 then
-echo "deb http://mirror.i3d.net/pub/mariadb/repo/10.0/debian wheezy main" >> /etc/apt/sources.list.d/mariadb.list
+echo deb [arch=amd64,i386] "http://ams2.mirrors.digitalocean.com/mariadb/repo/10.1/debian wheezy main" >> /etc/apt/sources.list.d/hhvm.list
 else
-echo "deb http://mirror.i3d.net/pub/mariadb/repo/10.0/debian jessie main" >> /etc/apt/sources.list.d/mariadb.list
+echo deb [arch=amd64,i386] "http://ams2.mirrors.digitalocean.com/mariadb/repo/10.1/debian jessie main" >> /etc/apt/sources.list.d/hhvm.list
 fi
 apt-key adv --recv-keys --keyserver keyserver.ubuntu.com 0xcbcb082a1bb943db &> /dev/null
 apt-get update  &> /dev/null
@@ -198,6 +200,8 @@ rand=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 4 | head -n 1)
 echo "$rand"
 }
 function choice_menu {
+    print_info "Use Let's Encrypt for HTTPS ? [y/n]"
+    read -s -n 1 ssl
     print_info "Install PHP or HHVM ? (y/n)"
     read -s -n 1 php
     if [[ $php != [YyNn] ]];
@@ -210,7 +214,7 @@ if [ $php = "y" ]; then
     print_info "Please choose which PHP version to install"
     print_info "1) PHP 5.6"
     if [ $(plain_version) = "8" ]; then
-    print_info "2) PHP 7.0 Development"
+    print_info "2) PHP 7.0.2"
     fi
 MACHINE_TYPE=`uname -m`
 if [ ${MACHINE_TYPE} == 'x86_64' ]; then
@@ -220,7 +224,7 @@ fi
     if [[ $phpv != [Ee123] ]];
     then
     print_warn "Invalid choice, try again"
-    php_version
+    exit 1
     fi
     fi
     print_info "Install MariaDB Server ? (y/n)"
@@ -267,9 +271,35 @@ fi
     exit 1
     fi
     fi
+    if [[ $ssl = "y" ]];
+    then
+        print_info ""
+    print_warn "**********Notice**********"
+    print_info "The domain you plan on using"
+    print_info "should already resolve to the"
+    print_info "servers main ip address."
+    print_info "This goes for both www.domain.com"
+    print_info "and domain.com"
+    print_info "Else Let's Encrypt will fail."
+    print_info "And nginx won't start."
+    print_warn "**********Notice**********"
+    print_info ""
+    print_info  "Enter Domain name (without www)"
+    read d
+    print_info "Enter a valid email"
+    read mail
+    print_info "Please wait ..."
+    if [[ -z $d ]];
+    then
+    clear
+    print_warn "Domain name not entered. Aborting."
+    exit 1
+    fi
+    else
     print_info "Enter Domain, leave blank to use IP"
     read d
     print_info "Please wait ..."
+    fi
 }
 ############################################################
 # Apps
@@ -284,7 +314,6 @@ function install_nginx {
     apt-get --purge remove apache2 -y &> /dev/null
     fi
     nginx_repo
-    apt-get --purge remove apache2 -y &> /dev/null
     DEBIAN_FRONTEND=noninteractive apt-get install -y nginx &> /dev/null
     /bin/cat <<"EOM" >/etc/nginx/conf.d/default.conf
  server {
@@ -355,9 +384,42 @@ sed -i '/    gzip_proxied any;/ a\    gzip_comp_level 6;' /etc/nginx/nginx.conf
 sed -i '/    gzip_comp_level 6;/ a\    gzip_buffers 16 8k;' /etc/nginx/nginx.conf
 sed -i '/    gzip_buffers 16 8k;/ a\    gzip_http_version 1.1;' /etc/nginx/nginx.conf
 sed -i '/    gzip_http_version 1.1;/ a\    gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;' /etc/nginx/nginx.conf
-sed -i '/.*    sendfile.*;/ a\    server_tokens   off; ' /etc/nginx/nginx.conf
+sed -i '/.*sendfile.*;/ a\    server_tokens   off; ' /etc/nginx/nginx.conf
+if [ $ssl = "y" ] ; then
+print_info "Setting up Let's Encrypt. This might take a while..."
+DEBIAN_FRONTEND=noninteractive apt-get -y install git bc &> /dev/null
+wait
+git clone https://github.com/letsencrypt/letsencrypt /opt/letsencrypt &> /dev/null
+wait
+service nginx stop
+wait
+/opt/letsencrypt/letsencrypt-auto certonly --test-cert --standalone --agree-tos --email "$mail" -d "$d" -d www."$d" &> /dev/null
+wait
+rm /etc/nginx/conf.d/default.conf
+wget -O /etc/nginx/conf.d/default.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/default-ssl.conf --no-check-certificate &> /dev/null
+wait
+sed -i "s|        ssl_certificate /etc/letsencrypt/live/domain/fullchain.pem;|        ssl_certificate /etc/letsencrypt/live/"$d"/fullchain.pem;|" /etc/nginx/conf.d/default.conf
+sed -i "s|        ssl_certificate_key /etc/letsencrypt/live/domain/privkey.pem;|        ssl_certificate_key /etc/letsencrypt/live/"$d"/privkey.pem;|" /etc/nginx/conf.d/default.conf
+sed -i "s|server_name domain www.domain;|server_name "$d" www."$d";|" /etc/nginx/conf.d/default.conf
+if [ $web = "1" ] ; then
+sed -i "s|.*listen        443.*|       listen        443 ssl;|" /etc/nginx/conf.d/default.conf
+fi
+cd /etc/letsencrypt/
+openssl dhparam -out dhparams.pem 2048
+chmod 600 dhparams.pem
+cp /opt/letsencrypt/examples/cli.ini /usr/local/etc/le-renew-webroot.ini
+sed -i "s|# email = foo@example.com|email = "$mail"|" /usr/local/etc/le-renew-webroot.ini
+sed -i "s|# domains = example.com, www.example.com|domains = "$d", www."$d"|" /usr/local/etc/le-renew-webroot.ini
+sed -i "s|# webroot-path = /usr/share/nginx/html|webroot-path = /usr/share/nginx/html|" /usr/local/etc/le-renew-webroot.ini
+wget -O /usr/local/sbin/le-renew-webroot https://gist.githubusercontent.com/thisismitch/e1b603165523df66d5cc/raw/fbffbf358e96110d5566f13677d9bd5f4f65794c/le-renew-webroot  &> /dev/null
+chmod +x /usr/local/sbin/le-renew-webroot
+(crontab -l 2>/dev/null; echo "30 2 * * 1 /usr/local/sbin/le-renew-webroot >> /var/log/le-renewal.log") | crontab -
+service nginx start
+    print_done "ngninx successfully installed."
+else
 service nginx restart &>  /dev/null
     print_done "ngninx successfully installed."
+fi
 if [ $php = "y" ] && [ $phpv = "1" ] ; then
 install_php
 elif
@@ -412,7 +474,7 @@ function install_php7 {
     check_install php7-fpm 1 "php7-fpm is already installed" v
     dotdeb_php_7_repo
     wait
-    DEBIAN_FRONTEND=noninteractive apt-get install php5-mysql php7.0 php7.0-fpm php7.0-common curl php7.0-cli -y &> /dev/null
+    DEBIAN_FRONTEND=noninteractive apt-get install php7.0-mysql php7.0 php7.0-fpm php7.0-common curl php7.0-cli php7.0-gd php7.0-mcrypt php7.0-opcache php7.0-curl -y &> /dev/null
     sed -i "s|.*;cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php/7.0/fpm/php.ini
     sed -i "s|.*upload_max_filesize = 2M.*|upload_max_filesize = 128M|" /etc/php/7.0/fpm/php.ini
     sed -i "s|.*post_max_size = 8M.*|post_max_size = 128M|" /etc/php/7.0/fpm/php.ini
@@ -492,7 +554,7 @@ print_done "MariaDB successfully installed."
 function install_phpmyadmin {
 check_install phpmyadmin 1 "phpMyAdmin is already installed" v
 check_install nginx 0 "Nginx is not installed."
-if [[ ! -f /usr/sbin/php-fpm5 ]] && [[ ! -f /usr/sbin/php-fpm7.0 ]] && [[ ! -f /usr/bin/hhvm ]]; then
+if [[ ! -f /usr/sbin/php5-fpm ]] && [[ ! -f /usr/sbin/php-fpm7.0 ]] && [[ ! -f /usr/bin/hhvm ]]; then
  print_warn "PHP or HHVM is not installed."
 exit 1
 fi
@@ -1521,7 +1583,7 @@ print_info "https://gotdeb.com"
 print_info ""
 print_info "Credits: Xeoncross, mikel, Falko Timme, road warrior, Nyr and many others",
 print_info ""
-print_info "Version 1.6.1"
+print_info "Version 1.6.2"
 }
 function system_tests {
 	print_info "Classic I/O test"
@@ -1665,7 +1727,7 @@ file="/home/speedtest-cli"
 if [ ! -f "$file" ]
 then
 print_info "Fetching script"
-apt-get install python -y
+apt-get install python -y &> /dev/null
 wget -O /home/speedtest-cli https://raw.github.com/sivel/speedtest-cli/master/speedtest_cli.py --no-check-certificate
 python /home/speedtest-cli --share
 else
