@@ -18,21 +18,18 @@ Run the script and follow the assistant:
 * Nginx
  * nginx 1.8.x
  * nginx 1.9.x
-* [Let's Encrypt](https://github.com/eunas/gotdeb/wiki/lets-encrypt)
+ * Optional SSL support with self signed certificate or [Let's Encrypt](https://github.com/eunas/gotdeb/wiki/lets-encrypt)
 * Blogs
  * Ghost
  * Wordpress
 * [PHP](https://github.com/eunas/gotdeb/wiki/PHP-FPM)
  * PHP-FPM 5.6
- * PHP-FPM 7.0
+ * PHP-FPM 7.0 (Debian 8)
  * HHVM
 * MySQL Server
 * MariaDB server
 * [phpMyAdmin](https://github.com/eunas/gotdeb/wiki/phpMyAdmin)
 * PureFTPD (FTPS enabled)
-* Java 7 JDK
-* MCMyAdmin x64
-* pptp server
 * OpenVPN Server (Works on NAT)
 * [SoftEtherVPS (Works on NAT)](https://github.com/eunas/gotdeb/wiki/SoftEtherVPN)
 * Squid3 Proxy Server

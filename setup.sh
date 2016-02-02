@@ -3,7 +3,7 @@
 ############################################################
 # Core
 ############################################################
-function check_install {
+check_install() {
         if [ $(dpkg-query -W -f='${Status}' "$1" 2>/dev/null | grep -c "ok installed") -eq $2 ]
         then
     if [ -n "$3" ]; then
@@ -16,36 +16,24 @@ function check_install {
         exit 1
         fi
 }
-function print_info {
-	echo -n -e '\e[1;33m'
-	echo -n $1
-	echo -e '\e[0m'
+print_info() { echo "$(tput bold)$(tput setaf 3)$*$(tput sgr0)"; }
+print_warn() { echo "$(tput bold)$(tput setaf 1)$*$(tput sgr0)"; }
+print_done() { echo "$(tput bold)$(tput setaf 2)$*$(tput sgr0)"; }
+die() { echo "$(tput bold)$(tput setaf 1)Warning: $*$(tput sgr0)"; }
+plain_version() {
+VERSION=$(sed 's/\..*//' /etc/debian_version)
+echo "$VERSION"
 }
-function print_warn {
-	echo -n -e '\e[1;31m'
-	echo -n $1
-	echo -e '\e[0m'
-}
-function print_done {
-	echo -n -e '\e[1;32m'
-	echo -n $1
-	echo -e '\e[0m'
-}
-function die {
-	echo "ERROR: $1" > /dev/null 1>&2
-	exit 1
-}
-function check_sanity {
+check_sanity() {
 	# Do some sanity checking.
 	if [ $(/usr/bin/id -u) != "0" ]
 	then
 		die 'Must be run by root user'
 	fi
-
-	if [ ! -f /etc/debian_version ]
-	then
-		die "Distribution is not supported. Debian 7 or above required."
-	fi
+    if [[ $(plain_version) -lt 7 ]] ;
+        then
+            die "Distribution is not supported. Debian 7 or above required."
+    fi
 MACHINE_TYPE=`uname -m`
     if [[ ${MACHINE_TYPE} == arm* ]] ; then
         die "ARM processors are not supported."
@@ -62,24 +50,6 @@ echo "$ip"
 function get_version {
 version=$(dpkg -s $1 | grep 'Version')
 print_info "$version"
-}
-function plain_version {
-VERSION=$(sed 's/\..*//' /etc/debian_version)
-if [ $VERSION -gt "7" ];
-  then
-    echo "8"
-  else
-    echo "7"
-fi
-}
-function update_upgrade {
-	# Run through the apt-get update/upgrade first.
-	# This should be done before we try to install any package
-    print_info "Updating system..."
-	apt-get update && apt-get upgrade -y &> /dev/null
-
-	# also remove the orphaned stuff
-	apt-get -q -y autoremove
 }
 function dotdeb_php_repo {
 file="/etc/apt/sources.list.d/dotdeb_php.list"
@@ -120,10 +90,9 @@ if [ ! -f "$file" ]
 then
 touch /etc/apt/sources.list.d/hhvm.list
 fi
-if [ $(plain_version) = "7" ];
-then
+if [ $(plain_version) = "7" ]; then
 echo deb "http://dl.hhvm.com/debian wheezy main" >> /etc/apt/sources.list.d/hhvm.list
-else
+elif [ $(plain_version) = "8" ]; then
 echo deb "http://dl.hhvm.com/debian jessie main" >> /etc/apt/sources.list.d/hhvm.list
 fi
 apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 0x5a16e7281be7a449  &> /dev/null
@@ -200,8 +169,28 @@ rand=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 4 | head -n 1)
 echo "$rand"
 }
 function choice_menu {
-    print_info "Use Let's Encrypt for HTTPS ? [y/n]"
+    print_info "Install nginx with HTTPS ? [y/n]"
     read -s -n 1 ssl
+    if [[ $ssl != [YyNn] ]];
+    then
+    clear
+    print_warn "Error in input, try again"
+    exit 1
+    fi
+if [ $ssl = "y" ]; then
+    clear
+    print_info "Please choose a SSL Certificate"
+    print_info "1) Self signed"
+    print_info "2) Let's Encrypt  (Domain required)"
+    read -s -n 1 sslv
+    if [[ $sslv != [Ee12] ]];
+    then
+    print_warn "Invalid choice, try again"
+    exit 1
+    fi
+    fi
+    clear
+if [[ -z $php ]]; then
     print_info "Install PHP or HHVM ? (y/n)"
     read -s -n 1 php
     if [[ $php != [YyNn] ]];
@@ -210,11 +199,12 @@ function choice_menu {
     print_warn "Error in input, try again"
     exit 1
     fi
+fi
 if [ $php = "y" ]; then
     print_info "Please choose which PHP version to install"
     print_info "1) PHP 5.6"
     if [ $(plain_version) = "8" ]; then
-    print_info "2) PHP 7.0.2"
+    print_info "2) PHP 7.0"
     fi
 MACHINE_TYPE=`uname -m`
 if [ ${MACHINE_TYPE} == 'x86_64' ]; then
@@ -227,6 +217,8 @@ fi
     exit 1
     fi
     fi
+    clear
+if [[ -z $db ]]; then
     print_info "Install MariaDB Server ? (y/n)"
     read -s -n 1 db
     if [[ $db != [YyNn] ]];
@@ -235,9 +227,11 @@ fi
     print_warn "Error in input, try again"
     exit 1
     fi
-
+fi
     if [[ $db = "n" ]]
     then
+    clear
+if [[ -z $db1 ]]; then
     print_info "Install MySQL Server ? (y/n)"
     read -s -n 1 db1
     if [[ $db1 != [YyNn] ]];
@@ -247,10 +241,11 @@ fi
     exit 1
     fi
     fi
-
-    if [[ $php = "y" ]] && [[ $db = "y" ]] || [[ $db1 = "y" ]]
+fi
+    if [[ $php = "y" ]] && [[ $db == 'y' || $db1 == 'y' ]];
     then
-    print_info "Install phpMyAdmin (y/n)"
+    clear
+    print_info "Install phpMyAdmin [y/n]"
     read -s -n 1 phpadm
     if [[ $phpadm != [YyNn] ]];
     then
@@ -262,8 +257,18 @@ fi
 
     if [[ $db = "y" ]] || [[ $db1 = "y" ]]
     then
+    unset dbpass
     print_info "Enter a password for the MySQL root user:"
-    read -s dbpass
+    while IFS= read -p "$prompt" -r -s -n 1 char
+    do
+        if [[ $char == $'\0' ]]
+        then
+            break
+        fi
+        prompt='*'
+        dbpass+="$char"
+    done
+    echo ""
     if [[ -z $dbpass ]];
     then
     clear
@@ -271,9 +276,9 @@ fi
     exit 1
     fi
     fi
-    if [[ $ssl = "y" ]];
+    if [[ $sslv = "2" ]];
     then
-        print_info ""
+    print_info ""
     print_warn "**********Notice**********"
     print_info "The domain you plan on using"
     print_info "should already resolve to the"
@@ -300,6 +305,36 @@ fi
     read d
     print_info "Please wait ..."
     fi
+}
+php_version() {
+while true; do
+print_info "Please choose which PHP version to install"
+print_info "1) PHP 5.6"
+print_info "2) PHP 7.0"
+print_info "3) HHVM"
+print_info "e) Exit"
+read choice
+case $choice in
+1)
+install_php
+break
+;;
+2)
+install_php7
+break
+;;
+3)
+install_hhvm
+break
+;;
+e|E)
+break
+;;
+     *)
+     print_warn "That is not a valid choice, try a number from 1 to 3."
+     ;;
+esac
+done
 }
 ############################################################
 # Apps
@@ -385,7 +420,60 @@ sed -i '/    gzip_comp_level 6;/ a\    gzip_buffers 16 8k;' /etc/nginx/nginx.con
 sed -i '/    gzip_buffers 16 8k;/ a\    gzip_http_version 1.1;' /etc/nginx/nginx.conf
 sed -i '/    gzip_http_version 1.1;/ a\    gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;' /etc/nginx/nginx.conf
 sed -i '/.*sendfile.*;/ a\    server_tokens   off; ' /etc/nginx/nginx.conf
-if [ $ssl = "y" ] ; then
+if [ $sslv = "1" ] ; then
+setup_selfsigned
+elif [ $sslv = "2" ] ; then
+setup_letsencrypt
+else
+service nginx restart &>  /dev/null
+    print_done "ngninx successfully installed."
+fi
+if [ $php = "y" ] && [ $phpv = "1" ] ; then
+install_php
+elif
+[ $php = "y" ] && [ $phpv = "2" ] ; then
+install_php7
+elif
+[ $php = "y" ] && [ $phpv = "3" ] ; then
+install_hhvm
+fi
+if [[ $db = "y" ]]
+then
+install_mariadb
+fi
+if [[ $db1 = "y" ]]
+then
+install_mysql
+fi
+if [[ $phpadm = "y" ]]
+then
+install_phpmyadmin
+fi
+}
+setup_selfsigned() {
+apt-get install openssl &> /dev/null
+mkdir -p /etc/nginx/ssl
+cd /etc/nginx/ssl
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/nginx/ssl/nginx.key -out /etc/nginx/ssl/nginx.crt -subj "/C=US/ST=defaultstate/L=defaultcity/O=myorg/CN="$d"" &> /dev/null
+wait
+chmod 600 /etc/nginx/ssl/nginx.key
+rm /etc/nginx/conf.d/default.conf
+wget -O /etc/nginx/conf.d/default.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/default-ssl.conf --no-check-certificate &> /dev/null
+wait
+sed -i "s|        ssl_certificate /etc/letsencrypt/live/domain/fullchain.pem;|        ssl_certificate /etc/nginx/ssl/nginx.crt;|" /etc/nginx/conf.d/default.conf
+sed -i "s|        ssl_certificate_key /etc/letsencrypt/live/domain/privkey.pem;|        ssl_certificate_key /etc/nginx/ssl/nginx.key;|" /etc/nginx/conf.d/default.conf
+sed -i "s|.*server_name.*|        server_name "$d";|" /etc/nginx/conf.d/default.conf
+sed -i "s|        ssl_dhparam /etc/letsencrypt/dhparams.pem;|        ssl_dhparam /etc/nginx/ssl/dhparams.pem;|" /etc/nginx/conf.d/default.conf
+if [ $web = "1" ] ; then
+sed -i "s|.*listen        443.*|       listen        443 ssl;|" /etc/nginx/conf.d/default.conf
+fi
+cd /etc/nginx/ssl/
+openssl dhparam -out dhparams.pem 2048 &> /dev/null
+chmod 600 dhparams.pem
+service nginx restart
+print_done "ngninx successfully installed."
+}
+setup_letsencrypt() {
 print_info "Setting up Let's Encrypt. This might take a while..."
 DEBIAN_FRONTEND=noninteractive apt-get -y install git bc &> /dev/null
 wait
@@ -415,37 +503,12 @@ wget -O /usr/local/sbin/le-renew-webroot https://gist.githubusercontent.com/this
 chmod +x /usr/local/sbin/le-renew-webroot
 (crontab -l 2>/dev/null; echo "30 2 * * 1 /usr/local/sbin/le-renew-webroot >> /var/log/le-renewal.log") | crontab -
 service nginx start
-    print_done "ngninx successfully installed."
-else
-service nginx restart &>  /dev/null
-    print_done "ngninx successfully installed."
-fi
-if [ $php = "y" ] && [ $phpv = "1" ] ; then
-install_php
-elif
-[ $php = "y" ] && [ $phpv = "2" ] ; then
-install_php7
-elif
-[ $php = "y" ] && [ $phpv = "3" ] ; then
-install_hhvm
-fi
-if [[ $db = "y" ]]
-then
-install_mariadb
-fi
-if [[ $db1 = "y" ]]
-then
-install_mysql
-fi
-if [[ $phpadm = "y" ]]
-then
-install_phpmyadmin
-fi
+print_done "ngninx successfully installed."
 }
 function install_php {
-    print_info "Installing PHP ..."
     if [ -x /usr/sbin/nginx ]; then
     check_install php5-fpm 1 "php5-fpm is already installed" v
+    print_info "Installing PHP ..."
     if [ $(plain_version) = "7" ]; then
     dotdeb_php_repo
     fi
@@ -469,9 +532,9 @@ exit 1
 fi
 }
 function install_php7 {
-    print_info "Installing PHP 7 ..."
     if [ -x /usr/sbin/nginx ]; then
     check_install php7-fpm 1 "php7-fpm is already installed" v
+    print_info "Installing PHP 7 ..."
     dotdeb_php_7_repo
     wait
     DEBIAN_FRONTEND=noninteractive apt-get install php7.0-mysql php7.0 php7.0-fpm php7.0-common curl php7.0-cli php7.0-gd php7.0-mcrypt php7.0-opcache php7.0-curl -y &> /dev/null
@@ -494,8 +557,8 @@ exit 1
 fi
 }
 function install_hhvm {
-    print_info "Installing HHVM ..."
     if [ -x /usr/sbin/nginx ]; then
+    print_info "Installing HHVM ..."
     hhvm_repo
     wait
     apt-get install php5-mysql hhvm curl -y &> /dev/null
@@ -522,9 +585,19 @@ check_install mysql-server 1 "MySQL is already installed"
 check_install mariadb-server 1 "MariaDB is the current DB server. Can't install MySQL"
 if [ -z "$dbpass" ];
 then
-print_info "Enter a password for the mysql root user:"
-read -s dbpass
+unset dbpass
+    print_info "Enter a password for the MySQL root user:"
+    while IFS= read -p "$prompt" -r -s -n 1 char
+    do
+        if [[ $char == $'\0' ]]
+        then
+            break
+        fi
+        prompt='*'
+        dbpass+="$char"
+    done
 fi
+clear
 print_info "Installing MySql Server, please wait..."
 apt-get update &> /dev/null
 wait
@@ -538,9 +611,19 @@ check_install mysql-server  1 "MySQL is the current DB server. Can't install Mar
 check_install mariadb-server 1 "MariaDB Server is already installed"
 if [ -z "$dbpass" ];
 then
-print_info "Enter a password for the mysql root user:"
-read -s dbpass
+unset dbpass
+    print_info "Enter a password for the MySQL root user:"
+    while IFS= read -p "$prompt" -r -s -n 1 char
+    do
+        if [[ $char == $'\0' ]]
+        then
+            break
+        fi
+        prompt='*'
+        dbpass+="$char"
+    done
 fi
+clear
 print_info "Installing MariaDB Server, please wait...";
 mariadb_repo
 DEBIAN_FRONTEND=noninteractive apt-get upgrade -y &> /dev/null
@@ -589,6 +672,7 @@ service nginx restart
 print_done "phpMyAdmin successfully installed."
 }
 function install_webserver  {
+clear
 print_info "Please choose which version to install"
     print_info "1) nginx 1.8.x"
     print_info "2) nginx 1.9.x"
@@ -628,183 +712,6 @@ echo "$p" > /etc/pure-ftpd/conf/Bind
 openssl req -x509 -nodes -days 7300 -newkey rsa:2048 -keyout /etc/ssl/private/pure-ftpd.pem -out /etc/ssl/private/pure-ftpd.pem -subj "/C=US/ST=defaultstate/L=defaultcity/O=myorg/CN=localhost"
 service pure-ftpd restart &> /dev/null
 print_done "Pure-FTPd with FTPS support successfully installed."
-}
-function install_java {
-check_install openjdk-7-jdk 1 "Java 7 JDK is already installed" v
-apt-get -y install openjdk-7-jdk
-print_done "Java 7 successfully installed."
-}
-function install_mcmyadmin {
-check_install openjdk-7-jdk 0 "Please install Java"
-print_info "Enter username for the user who should run the minecraft process"
-read username
-cuser=$(id -u $username)
-if [ "" == "$cuser" ]; then
-      print_warn "Please create the user first"
-exit 1
-fi
-apt-get -y install unzip
-if [ ! -d "/home/$username/minecraft" ]; then
-mkdir /home/$username/minecraft
-fi
-wget -P /home/$username/minecraft http://mcmyadmin.com/Downloads/MCMA2_glibc26_2.zip
-wait
-unzip -o /home/$username/minecraft/MCMA2_glibc26_2.zip -d /home/$username/minecraft
-rm /home/$username/minecraft/MCMA2_glibc26_2.zip
-wait
-wget -P /tmp http://mcmyadmin.com/Downloads/etc.zip
-wait
-unzip -o /tmp/etc.zip -d /usr/local
-wait
-rm /tmp/etc.zip
-chown -R $username /home/$username/minecraft
-print_done "-------------------------------------------------------------"
-print_done "McMyAdmin installed in /home/$username/minecraft"
-print_done "Run ./MCMA2_Linux_x86_64 -setpass YOURPASSWORD -configonly"
-print_done "-------------------------------------------------------------"
-}
-function install_pptp {
-print_info "######################################################"
-print_info "Interactive PoPToP Install Script for an OpenVZ VPS"
-print_info
-print_info "Make sure to contact your provider and have them enable"
-print_info "IPtables and ppp modules prior to setting up PoPToP."
-print_info "PPP can also be enabled from SolusVM."
-print_info
-print_info "You need to set up the server before creating more users."
-print_info "A separate user is required per connection or machine."
-print_info "######################################################"
-print_info
-print_info
-print_info "######################################################"
-print_info "Select on option:"
-print_info "1) Set up new PoPToP server AND create one user"
-print_info "2) Create additional users"
-print_info "######################################################"
-read x
-if test $x -eq 1; then
-	print_info "Enter username that you want to create (eg. client1 or john):"
-	read u
-	print_info "Specify password that you want the server to use:"
-	read p
-
-# get the VPS IP
-a="`netstat -i | cut -d' ' -f1 | grep eth0`";
-b="`netstat -i | cut -d' ' -f1 | grep venet0:0`";
-
-if [ "$a" == "eth0" ]; then
-  ip="`/sbin/ifconfig eth0 | awk -F':| +' '/inet addr/{print $4}'`";
-elif [ "$b" == "venet0:0" ]; then
-  ip="`/sbin/ifconfig venet0:0 | awk -F':| +' '/inet addr/{print $4}'`";
-fi
-
-print_info
-print_info "######################################################"
-print_info "Downloading and Installing PoPToP"
-print_info "######################################################"
-apt-get update
-apt-get -y install pptpd
-
-print_info
-print_info "######################################################"
-print_info "Creating Server Config"
-print_info "######################################################"
-cat > /etc/ppp/pptpd-options <<END
-name pptpd
-refuse-pap
-refuse-chap
-refuse-mschap
-require-mschap-v2
-require-mppe-128
-ms-dns 8.8.8.8
-ms-dns 8.8.4.4
-proxyarp
-nodefaultroute
-lock
-nobsdcomp
-END
-
-# setting up pptpd.conf
-echo "option /etc/ppp/pptpd-options" > /etc/pptpd.conf
-echo "logwtmp" >> /etc/pptpd.conf
-echo "localip $ip" >> /etc/pptpd.conf
-echo "remoteip 10.1.0.1-100" >> /etc/pptpd.conf
-
-# adding new user
-echo "$u	*	$p	*" >> /etc/ppp/chap-secrets
-
-print_info
-print_info "######################################################"
-print_info "Forwarding IPv4 and Enabling it on boot"
-print_info "######################################################"
-cat >> /etc/sysctl.conf <<END
-net.ipv4.ip_forward=1
-END
-sysctl -p
-
-print_info
-print_info "######################################################"
-print_info "Updating IPtables Routing and Enabling it on boot"
-print_info "######################################################"
-iptables -t nat -A POSTROUTING -j SNAT --to $ip
-# saves iptables routing rules and enables them on-boot
-iptables-save > /etc/iptables.conf
-
-cat > /etc/network/if-pre-up.d/iptables <<END
-#!/bin/sh
-iptables-restore < /etc/iptables.conf
-END
-
-chmod +x /etc/network/if-pre-up.d/iptables
-cat >> /etc/ppp/ip-up <<END
-ifconfig ppp0 mtu 1400
-END
-
-print_info
-print_info "######################################################"
-print_info "Restarting PoPToP"
-print_info "######################################################"
-sleep 5
-/etc/init.d/pptpd restart
-
-print_done
-print_done "######################################################"
-print_done "Server setup complete!"
-print_done "Connect to your VPS at $ip with these credentials:"
-print_done "Username:$u ##### Password: $p"
-print_done "######################################################"
-
-# runs this if option 2 is selected
-elif test $x -eq 2; then
-	print_info "Enter username that you want to create (eg. client1 or john):"
-	read u
-	print_info "Specify password that you want the server to use:"
-	read p
-
-# get the VPS IP
-a="`netstat -i | cut -d' ' -f1 | grep eth0`";
-b="`netstat -i | cut -d' ' -f1 | grep venet0:0`";
-
-if [ "$a" == "eth0" ]; then
-  ip="`/sbin/ifconfig eth0 | awk -F':| +' '/inet addr/{print $4}'`";
-elif [ "$b" == "venet0:0" ]; then
-  ip="`/sbin/ifconfig venet0:0 | awk -F':| +' '/inet addr/{print $4}'`";
-fi
-
-# adding new user
-echo "$u	*	$p	*" >> /etc/ppp/chap-secrets
-
-echo
-print_done "######################################################"
-print_done "Addtional user added!"
-print_done "Connect to your VPS at $ip with these credentials:"
-print_done "Username:$u ##### Password: $p"
-print_done "######################################################"
-
-else
-print_info "Invalid selection, quitting."
-exit
-fi
 }
 function install_openvpn {
 if [[ ! -e /dev/net/tun ]]; then
@@ -1288,7 +1195,7 @@ print_info "1) Setup using Mandrill smtp"
 print_info "2) Setup using Gmail smtp"
 print_info "3) Configure for PHP"
 print_info "e) Exit"
-read choice
+read -n1 choice
 case $choice in
 1)
 print_info "specify email address"
@@ -1370,11 +1277,11 @@ print_done "ssmtp successfully installed."
 break
 ;;
 3)
-if [[ ! -f /usr/sbin/php-fpm5 ]] && [[ ! -f /usr/sbin/php-fpm7.0 ]] && [[ ! -f /usr/bin/hhvm ]]; then
+if [[ ! -f /usr/sbin/php5-fpm ]] && [[ ! -f /usr/sbin/php-fpm7.0 ]] && [[ ! -f /usr/bin/hhvm ]]; then
  print_warn "PHP or HHVM is not installed."
 exit 1
 fi
-if [[ -f /usr/sbin/php-fpm5 ]]; then
+if [[ -f /usr/sbin/php5-fpm ]]; then
 sed -i "s|.*sendmail_path.*|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php5/fpm/php.ini
 elif [[ -f /usr/sbin/php-fpm7.0 ]]; then
 sed -i "s|.*sendmail_path.*|sendmail_path = /usr/sbin/ssmtp -t|" /etc/php/7.0/fpm/php.ini
@@ -1444,7 +1351,7 @@ print_info "1) Add user"
 print_info "2) Delete user"
 print_info "3) List users"
 print_info "e) Exit"
-read choice
+read -n1 choice
 case $choice in
 1)
 print_info "Enter username"
@@ -1491,7 +1398,7 @@ print_info "6) Speedtest.net"
 print_info "7) Get OS Version"
 print_info "8) TUN/TAP Status"
 print_info "e) Exit"
-read choice
+read -n1 choice
 case $choice in
 1)
 remove_unneeded
@@ -1583,7 +1490,7 @@ print_info "https://gotdeb.com"
 print_info ""
 print_info "Credits: Xeoncross, mikel, Falko Timme, road warrior, Nyr and many others",
 print_info ""
-print_info "Version 1.6.2"
+print_info "Version 1.6.3"
 }
 function system_tests {
 	print_info "Classic I/O test"
@@ -1600,7 +1507,7 @@ print_warn "Aria2 is already installed."
 exit 1
 fi
 if [ -x /usr/sbin/nginx ]; then
-if [[ ! -f /usr/sbin/php-fpm5 ]] && [[ ! -f /usr/sbin/php-fpm7.0 ]] && [[ ! -f /usr/bin/hhvm ]]; then
+if [[ ! -f /usr/sbin/php5-fpm ]] && [[ ! -f /usr/sbin/php-fpm7.0 ]] && [[ ! -f /usr/bin/hhvm ]]; then
  print_warn "PHP or HHVM is not installed."
 exit 1
 fi
@@ -1713,7 +1620,7 @@ fi
 }
 function get_linuxdash {
 check_install nginx 0 "Please install nginx first."
-if [[ ! -f /usr/sbin/php-fpm5 ]] && [[ ! -f /usr/sbin/php-fpm7.0 ]] && [[ ! -f /usr/bin/hhvm ]]; then
+if [[ ! -f /usr/sbin/php5-fpm ]] && [[ ! -f /usr/sbin/php-fpm7.0 ]] && [[ ! -f /usr/bin/hhvm ]]; then
  print_warn "PHP or HHVM is not installed."
 exit 1
 fi
@@ -1829,7 +1736,7 @@ read port
 print_info "Select method"
 print_info "1) SecureNAT"
 print_info "2) Local Bridge"
-read -s -n 1 method
+read -s -n1 method
 if [[ $method = "2" ]] && [[ ! -e /dev/net/tun ]]; then
 	print_warn "TUN/TAP is not available, using SecureNAT instead."
 	method="1"
@@ -1922,37 +1829,38 @@ print_done "For further information."
 }
 function install_remotedesktop {
 check_install x2goserver 1 "X2Go Server is already installed." v
+print_info "Install X2GO. Please wait ..."
 apt-key adv --recv-keys --keyserver keys.gnupg.net E1F958385BFE2B6E
 file="/etc/apt/sources.list.d/x2go.list"
 if [ ! -f "$file" ]
 then
 touch /etc/apt/sources.list.d/x2go.list
+fi
 if [ $(plain_version) = "7" ]; then
 echo "deb http://packages.x2go.org/debian wheezy main" >> /etc/apt/sources.list.d/x2go.list
 echo "deb-src http://packages.x2go.org/debian wheezy main" >> /etc/apt/sources.list.d/x2go.list
-else
+elif [ $(plain_version) = "8" ]; then
 echo "deb http://packages.x2go.org/debian jessie main" >> /etc/apt/sources.list.d/x2go.list
 echo "deb-src http://packages.x2go.org/debian jessie main" >> /etc/apt/sources.list.d/x2go.list
 fi
-fi
-apt-get update
-apt-get install x2go-keyring -y
-apt-get install xfce4 iceweasel -y
+apt-get update  &> /dev/null
+apt-get install x2go-keyring -y &> /dev/null
+apt-get install xfce4 iceweasel -y &> /dev/null
 
-apt-get install x2goserver* -y
-service x2goserver start
+apt-get install x2goserver* -y &> /dev/null
+service x2goserver start &> /dev/null
 print_done "Installation completed"
 print_done "Remember to create a new user"
 print_done "X2Go client can be downloaded from"
 print_done "http://wiki.x2go.org/doku.php/download:start"
 }
-function secure_system {
+secure_system() {
 check_install fail2ban 1 "fail2ban is already installed."
 while true; do
 print_info "This will install fail2ban, change the ssh port,"
 print_info "permit ssh root login and create a new user"
 print_info "Are you sure you want to continue ? [y/n]"
-read choice
+read -n1 choice
 case $choice in
 y|Y|yes|Yes|YES)
 print_info "Installing fail2ban...."
@@ -1994,11 +1902,11 @@ break
 esac
 done
 }
-function plex_setup {
+plex_setup() {
 ram=$(free | awk '/^Mem:/{print $2}')
 if [[  "$ram" -lt "524288" ]] ; then
-print_warn "It's not recommended to install plex on a server with less then 512 MB RAM. Are you sure you want to continue ? [Yes|No]"
-read ram
+print_warn "It's not recommended to install plex on a server with less then 512 MB RAM. Are you sure you want to continue ? [y/n]"
+read -n1 ram
 else
 plex_install
 fi
@@ -2008,19 +1916,18 @@ else
 exit 1
 fi
 }
-function plex_install {
+plex_install() {
 print_info "Installing Plex media server ..."
-apt-get update &> /dev/null && apt-get install curl -y &> /dev/null
+wget http://shell.ninthgate.se/packages/shell-ninthgate-se-keyring.key &> /dev/null
+apt-key add shell-ninthgate-se-keyring.key &> /dev/null
 wait
-echo "deb http://shell.ninthgate.se/packages/debian wheezy main" | tee -a /etc/apt/sources.list.d/plexmediaserver.list
-curl http://shell.ninthgate.se/packages/shell-ninthgate-se-keyring.key | apt-key add -  &> /dev/null
-wait
+rm shell-ninthgate-se-keyring.key
 apt-get update &> /dev/null && apt-get install plexmediaserver -y  &> /dev/null
 wait
 wget --no-check-certificate -O /etc/init.d/plexmediaserver https://raw.githubusercontent.com/eunas/gotdeb/master/resources/plexmediaserver  &> /dev/null
 wait
 chmod +x /etc/init.d/plexmediaserver
-update-rc.d plexmediaserver defaults &> /dev/nul
+update-rc.d plexmediaserver defaults &> /dev/null
 print_done "Plex media server has been installed. You can access it at http://$(get_ip):32400/web To get access to the server settings please setup a VPN on the server and access it's localip using that."
 }
 function setup_observium {
@@ -2029,7 +1936,7 @@ print_info "Choose what you want to install:"
 print_info "1) Install Server"
 print_info "2) Install Client"
 print_info "e) Exit"
-read choice
+read -n1 choice
 case $choice in
 1)
 install_observium_server
@@ -2050,7 +1957,7 @@ done
 }
 function install_observium_server {
 if [ -x /usr/sbin/nginx ]; then
-if [[ ! -f /usr/sbin/php-fpm5 ]] && [[ ! -f /usr/sbin/php-fpm7.0 ]] && [[ ! -f /usr/bin/hhvm ]]; then
+if [[ ! -f /usr/sbin/php5-fpm ]] && [[ ! -f /usr/sbin/php-fpm7.0 ]] && [[ ! -f /usr/bin/hhvm ]]; then
  print_warn "PHP or HHVM is not installed."
 exit 1
 fi
@@ -2224,7 +2131,7 @@ print_info "Choose a blog to install:"
 print_info "1) Ghost"
 print_info "2) Wordpress"
 print_info "e) Exit"
-read choice
+read -n 1 choice
 case $choice in
 1)
 install_ghost
@@ -2243,39 +2150,63 @@ break
 esac
 done
 }
-function install_ghost {
-check_install nginx 0 "Please install nginx first"
-clear
+install_ghost() {
+check_install nginx 1 "nginx is already installed. Please remove it before installing ghost."
 print_info "========================================================================="
 print_info "Please notice that installing ghost on a lowend system can take 30+ min."
 print_info "Your current nginx configuration will be overwritten"
 print_info "========================================================================="
 print_info ""
-print_info "Enter Domain (Leave blank to use IP)"
-read ip
-if [ -z "$ip" ] ; then
-ip="$(get_external_ip)"
-fi
 print_info "Enter port (Leave blank to use default)"
-read p
-if [ -z "$p" ] ; then
-p="2368"
+read gp
+clear
+print_info "Select a database server"
+print_info "1) SQLite"
+print_info "2) MariaDB"
+print_info "3) MySQL"
+read -n 1 dbs
+    if [[ $dbs = "2" ]] || [[ $dbs = "3" ]] ; then
+clear
+print_info "Install PHP ? [y/n]"
+read -n 1 pha
+fi
+if [[ $pha != [YyNn] ]];
+    then
+    clear
+    print_warn "Error in input, try again"
+    exit 1
+    fi
+if [[ $pha = "y" ]] ; then
+php=y
+else
+php=n
+fi
+if [[ $dbs = "2" ]] ; then
+db=y
+db1=n
+elif [[ $dbs = "3" ]] ; then
+db=n
+db1=y
+else
+db=n
+db1=n
+fi
+install_webserver
+if [ -z "$gp" ] ; then
+gp="2368"
 fi
 clear
-print_info "Installing ghost...."
+print_info "Installing ghost. Please wait ...."
 apt-get update  &> /dev/null
 wait
 apt-get install zip curl -y  &> /dev/null
 wait
-curl -sL https://deb.nodesource.com/setup_0.12 | bash -  &> /dev/null
-wait
-apt-get install nodejs -y  &> /dev/null
-wait
-npm install npm@2.13.5 -g  &> /dev/null
-wait
+
+curl -sL https://deb.nodesource.com/setup_4.x | bash - &> /dev/null
+apt-get install --yes nodejs &> /dev/null
+
 wget -O /tmp/ghost.zip https://ghost.org/zip/ghost-latest.zip &> /dev/null
 wait
-#===check which webserver is installed==
 mkdir -p /usr/share/ghost
 unzip /tmp/ghost.zip -d /usr/share/ghost &> /dev/null
 wait
@@ -2283,9 +2214,55 @@ cd /usr/share/ghost
 npm install --production
 wait
 cp config.example.js config.js
-sed -i "s|.*http://my-ghost-blog.com.*|        url: 'http://$ip',|" /usr/share/ghost/config.js
+wget -O /etc/nginx/conf.d/ghost.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/ghost.conf --no-check-certificate  &> /dev/null
+wait
+mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default-backup
+if [ $sslv = "1" ] ; then
+rm /etc/nginx/conf.d/ghost.conf
+wget -O /etc/nginx/conf.d/ghost.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/ghost-ssl.conf --no-check-certificate  &> /dev/null
+wait
+sed -i "s|    ssl_dhparam|    ssl_dhparam /etc/nginx/ssl/dhparams.pem;|" /etc/nginx/conf.d/ghost.conf
+if [[ $phpv = "2" ]] ; then
+sed -i "s|.*fastcgi_pass unix:/var/run/php5-fpm.sock;|fastcgi_pass unix:/var/run/php/php7.0-fpm.sock;|" /etc/nginx/conf.d/ghost.conf
+elif [[ $phpv = "3" ]] ; then
+sed -i "s|        fastcgi_pass unix:/var/run/php5-fpm.sock;|        fastcgi_pass unix:/var/run/hhvm/hhvm.sock;|" /etc/nginx/conf.d/ghost.conf
+fi
+if [ $web = "1" ] ; then
+sed -i "s|    listen 443 ssl http2;|    listen 443 ssl;|" /etc/nginx/conf.d/ghost.conf
+fi
+fi
+if [ $sslv = "2" ] ; then
+rm /etc/nginx/conf.d/ghost.conf
+wget -O /etc/nginx/conf.d/ghost.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/ghost-ssl.conf --no-check-certificate  &> /dev/null
+wait
+sed -i "s|    ssl_certificate /etc/nginx/ssl/nginx.crt;|    ssl_certificate /etc/letsencrypt/live/"$d"/fullchain.pem;|" /etc/nginx/conf.d/ghost.conf
+sed -i "s|    ssl_certificate_key /etc/nginx/ssl/nginx.key;|    ssl_certificate_key /etc/letsencrypt/live/"$d"/privkey.pem;|" /etc/nginx/conf.d/ghost.conf
+sed -i "s|    ssl_dhparam|    ssl_dhparam /etc/letsencrypt/dhparams.pem;|" /etc/nginx/conf.d/ghost.conf
+if [ $web = "1" ] ; then
+sed -i "s|    listen 443 ssl http2;|    listen 443 ssl;|" /etc/nginx/conf.d/ghost.conf
+fi
+fi
+if [[ $dbs = "2" ]] || [[ $dbs = "3" ]] ; then
+rand=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 4 | head -n 1)
+u=ghost_$rand
+p=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 12 | head -n 1)
+#EXPECTED_ARGS=3
+#E_BADARGS=65
+MYSQL=`which mysql`
+Q1="CREATE DATABASE IF NOT EXISTS ghost;"
+Q2="GRANT USAGE ON *.* TO $u@localhost IDENTIFIED BY '$p';"
+Q3="GRANT ALL PRIVILEGES ON ghost.* TO $u@localhost;"
+Q4="FLUSH PRIVILEGES;"
+SQL="${Q1}${Q2}${Q3}${Q4}"
+$MYSQL -uroot -p$dbpass -e "$SQL"
+sed -i "s|            client: 'sqlite3',|            client: 'mysql',|" /usr/share/ghost/config.js
+sed -i "s|filename: path.join(__dirname, '/content/data/ghost.db')|host: 'localhost',\n                user: '"$u"',\n                password: '"$p"',\n                database: 'ghost',\n                charset: 'utf8'|" /usr/share/ghost/config.js
+fi
+sed -i "s|.*http://my-ghost-blog.com.*|        url: 'http://$d',|" /usr/share/ghost/config.js
 sed -i "s|            host: '127.0.0.1',|            host: '0.0.0.0',|" /usr/share/ghost/config.js
-sed -i "s|            port: '2368'|            port: '"$p"'|" /usr/share/ghost/config.js
+sed -i "s|            port: '2368'|            port: '"$gp"'|" /usr/share/ghost/config.js
+sed -i "s|    server_name server_name;|    server_name "$d";|" /etc/nginx/conf.d/ghost.conf
+sed -i "s|proxy_pass http://127.0.0.1:2368;|proxy_pass http://127.0.0.1:"$gp";|" /etc/nginx/conf.d/ghost.conf
 useradd -r ghost -U
 chown -R ghost:ghost /usr/share/ghost
 wget -O /etc/init.d/ghost https://raw.github.com/TryGhost/Ghost-Config/master/init.d/ghost  &> /dev/null
@@ -2294,39 +2271,31 @@ chmod 755 /etc/init.d/ghost
 update-rc.d ghost defaults  &> /dev/null
 update-rc.d ghost enable  &> /dev/null
 /etc/init.d/ghost start  &> /dev/null
-wget -O /etc/nginx/conf.d/ghost.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/ghost.conf --no-check-certificate  &> /dev/null
-wait
-sed -i "s|.*server_name.*|server_name "$ip";|" /etc/nginx/conf.d/ghost.conf
-sed -i "s|proxy_pass http://127.0.0.1:2368;|proxy_pass http://127.0.0.1:"$p";|" /etc/nginx/conf.d/ghost.conf
-mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default-backup
 service nginx restart  &> /dev/null
 clear
 print_done "======================================================"
 print_done "Ghost has been installed"
-print_done "You can access it at $ip"
-print_done "Find the admin area at $ip/ghost"
+print_done "You can access it at $d"
+print_done "Access the admin area at $d/ghost"
+if [[ $dbs = "2" ]] || [[ $dbs = "3" ]] ; then
+print_done ""
+print_done "Database information:"
+print_done "Username: $u"
+print_done "Password: $p"
+fi
 print_done "======================================================"
 }
-function install_wp {
-check_install nginx 0 "Please install nginx"
-if [[ ! -f /usr/sbin/php-fpm5 ]] && [[ ! -f /usr/sbin/php-fpm7.0 ]] && [[ ! -f /usr/bin/hhvm ]]; then
- print_warn "PHP or HHVM is not installed."
-exit 1
-fi
-if ((! $(ps -ef | grep -v grep | grep mysql | wc -l) > 0 ))
-then
-        print_warn "The MySQL server is stopped or not installed. Aborting";
-        exit 1
-
-fi
-clear
+install_wp() {
+check_install nginx 1 "nginx is already installed. Please remove it before installing Wordpress."
+php=y
+db=y
+db1=n
+install_webserver
 rand=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 4 | head -n 1)
 u=wordpress_$rand
 p=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 12 | head -n 1)
-print_info "Enter mysql root password"
-read -s RP
-while ! mysql -u root -p$RP  -e 2>/dev/null ";" ; do
-       read -s -p "Can't connect, please retry: " RP
+while ! mysql -u root -p$dbpass  -e 2>/dev/null ";" ; do
+       read -s -p "Can't connect, please retry: " dbpass
 done
 print_info "Installing Wordpress..."
 #EXPECTED_ARGS=3
@@ -2337,7 +2306,7 @@ Q2="GRANT USAGE ON *.* TO $u@localhost IDENTIFIED BY '$p';"
 Q3="GRANT ALL PRIVILEGES ON wordpress.* TO $u@localhost;"
 Q4="FLUSH PRIVILEGES;"
 SQL="${Q1}${Q2}${Q3}${Q4}"
-$MYSQL -uroot -p$RP -e "$SQL"
+$MYSQL -uroot -p$dbpass -e "$SQL"
 wget -O /tmp/wordpress.tar.gz http://wordpress.org/latest.tar.gz  &> /dev/null
 wait
 tar -C /tmp/ -xvzf /tmp/wordpress.tar.gz  &> /dev/null
@@ -2357,7 +2326,7 @@ rm -rf /tmp/*
 clear
 print_done "======================================================"
 print_done "Wordpress has been installed"
-print_done "You can access it at $(get_ip) or your domain."
+print_done "You can access it at $d"
 print_done "Database user: $u"
 print_done "Database password: $p"
 print_done "======================================================"
@@ -2370,27 +2339,24 @@ while true; do
 print_info "Choose what you want to install:"
 print_info "1) Nginx"
 print_info "2) Blogs"
-print_info "3) PHP-FPM 5.6"
+print_info "3) PHP"
 print_info "4) MySQL Server"
 print_info "5) MariaDB server"
 print_info "6) phpMyAdmin"
 print_info "7) PureFTPD"
-print_info "8) Java 7 JDK"
-print_info "9) MCMyAdmin x64"
-print_info "10) pptp server"
-print_info "11) OpenVPN Server"
-print_info "12) SoftEther VPN"
-print_info "13) Squid3 Proxy Server"
-print_info "14) sSMTP server"
-print_info "15) Aria2 + Webui"
-print_info "16) Transmission"
-print_info "17) X2Go + Xfce Desktop"
-print_info "18) Plex Media Server"
-print_info "19) Observium"
-print_info "20) Linux-Dash"
-print_info "21) User Management"
-print_info "22) System Management"
-print_info "23) About"
+print_info "8) OpenVPN Server"
+print_info "9) SoftEther VPN"
+print_info "10) Squid3 Proxy Server"
+print_info "11) sSMTP server"
+print_info "12) Aria2 + Webui"
+print_info "13) Transmission"
+print_info "14) X2Go + Xfce Desktop"
+print_info "15) Plex Media Server"
+print_info "16) Observium"
+print_info "17) Linux-Dash"
+print_info "18) User Management"
+print_info "19) System Management"
+print_info "20) About"
 print_info "e) Exit"
 read choice
 case $choice in
@@ -2403,7 +2369,7 @@ install_blog
 break
 ;;
 3)
-install_php
+php_version
 break
 ;;
 4)
@@ -2423,66 +2389,54 @@ install_pureftpd
 break
 ;;
 8)
-install_java
-break
-;;
-9)
-install_mcmyadmin
-break
-;;
-10)
-install_pptp
-break
-;;
-11)
 install_openvpn
 break
 ;;
-12)
+9)
 install_softether
 break
 ;;
-13)
+10)
 install_squid3
 break
 ;;
-14)
+11)
 install_ssmtp
 break
 ;;
-15)
+12)
 configure_aria2
 break
 ;;
-16)
+13)
 install_transmission
 break
 ;;
-17)
+14)
 install_remotedesktop
 break
 ;;
-18)
+15)
 plex_setup
 break
 ;;
-19)
+16)
 setup_observium
 break
 ;;
-20)
+17)
 get_linuxdash
 break
 ;;
-21)
+18)
 user_management
 break
 ;;
-22)
+19)
 system_management
 break
 ;;
-23)
+20)
 script_about
 break
 ;;
@@ -2490,7 +2444,7 @@ e|E)
 break
 ;;
      *)
-     print_warn "That is not a valid choice, try a number from 1 to 23."
+     print_warn "That is not a valid choice, try a number from 1 to 20."
      ;;
 esac
 done

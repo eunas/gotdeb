@@ -1,3 +1,13 @@
+### 1.6.3 (2016-02-02)
+- Removed PPTP, Java and MCmyadmin install.
+- Fixed PHP 5 detection
+- Added SSL support for nginx with self signed certificate
+- Added SSL support for Ghost Blog
+- Added MySQL support for Ghost Blog
+- Updated nodejs for Ghost
+- Ghost and Wordpress are now installed with nginx.
+- Other tweaks and fixes
+
 ### 1.6.2 (2016-01-17)
 - Fixed errors in PHP 7 and PHP 5.6 install
 - Added experimental [Let's Encrypt](https://github.com/eunas/gotdeb/wiki/lets-encrypt) support for nginx
