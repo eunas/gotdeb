@@ -420,9 +420,11 @@ sed -i '/    gzip_comp_level 6;/ a\    gzip_buffers 16 8k;' /etc/nginx/nginx.con
 sed -i '/    gzip_buffers 16 8k;/ a\    gzip_http_version 1.1;' /etc/nginx/nginx.conf
 sed -i '/    gzip_http_version 1.1;/ a\    gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;' /etc/nginx/nginx.conf
 sed -i '/.*sendfile.*;/ a\    server_tokens   off; ' /etc/nginx/nginx.conf
-if [ $sslv = "1" ] ; then
+if [[ $sslv = "1" ]]
+then
 setup_selfsigned
-elif [ $sslv = "2" ] ; then
+elif [[ $sslv = "2" ]]
+then
 setup_letsencrypt
 else
 service nginx restart &>  /dev/null
@@ -454,7 +456,7 @@ setup_selfsigned() {
 apt-get install openssl &> /dev/null
 mkdir -p /etc/nginx/ssl
 cd /etc/nginx/ssl
-openssl req -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/nginx/ssl/nginx.key -out /etc/nginx/ssl/nginx.crt -subj "/C=US/ST=defaultstate/L=defaultcity/O=myorg/CN="$d"" &> /dev/null
+openssl req -sha256 -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/nginx/ssl/nginx.key -out /etc/nginx/ssl/nginx.crt -subj "/C=US/ST=defaultstate/L=defaultcity/O=myorg/CN="$d"" &> /dev/null
 wait
 chmod 600 /etc/nginx/ssl/nginx.key
 rm /etc/nginx/conf.d/default.conf
@@ -525,6 +527,7 @@ function install_php {
 EOM
     wait
     service php5-fpm start
+    service nginx restart
     print_done "PHP-FPM 5.6 successfully installed."
 else
 print_warn "No webserver installed. Aborting"
@@ -550,6 +553,7 @@ function install_php7 {
 EOM
     wait
     service php7.0-fpm start
+    service nginx restart
     print_done "PHP-FPM 7.0 successfully installed."
 else
 print_warn "No webserver installed. Aborting"
@@ -1502,6 +1506,13 @@ function system_tests {
 	wget cachefly.cachefly.net/100mb.test -O 100mb.test && rm -fr 100mb.test
 }
 function configure_aria2 {
+#########################
+check_install nginx 1 "nginx is already installed. Please remove it before installing Aria2."
+php=n
+db=n
+db1=n
+install_webserver
+#########################
 if which aria2c >/dev/null; then
 print_warn "Aria2 is already installed."
 exit 1
@@ -1602,12 +1613,7 @@ EOM
 sed -i "s|.*aria2c --daemon=true --enable-rpc --rpc-listen-all --rpc-secret=secret.*|aria2c --daemon=true --enable-rpc --rpc-listen-all --rpc-secret=$secret -D --conf-path=/usr/share/aria2/aria2.conf;|" /etc/init.d/aria2
 chmod +x /etc/init.d/aria2
 update-rc.d aria2 defaults &> /dev/null
-if which nginx >/dev/null;
-then
 git clone https://github.com/ziahamza/webui-aria2.git /usr/share/nginx/html/aria2 &> /dev/null
-else
-git clone https://github.com/ziahamza/webui-aria2.git /var/www/aria2 &> /dev/null
-fi
 service aria2 start &> /dev/null
 wait
 rm -rf /tmp/aria2
@@ -1717,7 +1723,9 @@ esac
 exit 0
 EOM
 chmod 755 /etc/init.d/vpnserver
-mkdir /var/lock/subsys
+if [ ! -d "/var/lock/subsys" ]; then
+  mkdir /var/lock/subsys
+fi
 update-rc.d vpnserver defaults &> /dev/null
 /etc/init.d/vpnserver start &> /dev/null
 mkdir /tmp/.vpntemp
