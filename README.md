@@ -52,6 +52,9 @@ Run the script and follow the assistant:
  * Update timezone
  * System tests
  * [Secure System](https://github.com/eunas/gotdeb/wiki/Secure-System)
+   * fail2ban
+    * Uncomplicated Firewall
+     * Unattended Upgrades
  * Speedtest.net
  * Get OS Version
 * About

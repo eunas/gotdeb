@@ -1,3 +1,13 @@
+### 1.6.4 (2016-03-06)
+- Fixed nginx config not being applied on setup
+- Fixed error in nginx ssl redirect
+- Added SSL support and port option for Aria2
+- Added SSL Support for Observium
+- Added UFW (Uncomplicated Firewall)
+- Added Unattended Upgrades
+- Updated OpenVPN installer
+- Various bug fixes
+
 ### 1.6.3 (2016-02-02)
 - Removed PPTP, Java and MCmyadmin install.
 - Fixed PHP 5 detection
