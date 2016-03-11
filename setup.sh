@@ -495,7 +495,7 @@ git clone https://github.com/letsencrypt/letsencrypt /opt/letsencrypt &> /dev/nu
 wait
 service nginx stop
 wait
-/opt/letsencrypt/letsencrypt-auto certonly --test-cert --standalone --agree-tos --email "$mail" -d "$d" -d www."$d" &> /dev/null
+/opt/letsencrypt/letsencrypt-auto certonly --standalone --agree-tos --email "$mail" -d "$d" -d www."$d" &> /dev/null
 wait
 rm /etc/nginx/conf.d/default.conf
 wget -O /etc/nginx/conf.d/default.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/default-ssl.conf --no-check-certificate &> /dev/null
