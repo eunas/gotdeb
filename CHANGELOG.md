@@ -1,3 +1,11 @@
+### 1.6.5 (2016-06-09)
+- Updated LetsEncrypt to use Certbot.
+- Updated LetsEncrypt autorenew
+- Updated MySQL to version 5.7
+- Fixed error in MariaDB repo
+- Fixed standalone MariaDB installation.
+- Various bug fixes
+
 ### 1.6.4 (2016-03-06)
 - Fixed nginx config not being applied on setup
 - Fixed error in nginx ssl redirect

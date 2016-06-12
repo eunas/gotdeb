@@ -7,27 +7,24 @@ Requires Debian version 7.x or 8.x
 ###Installation
 Run the script and follow the assistant:
 
-`wget https://gotdeb.com/setup.sh --no-check-certificate`<br />
-`chmod +x setup.sh && ./setup.sh`
-####OR
 `wget https://raw.githubusercontent.com/eunas/gotdeb/master/setup.sh --no-check-certificate`<br />
 `chmod +x setup.sh && ./setup.sh`
 
 ###Script content
 
 * Nginx
- * nginx 1.8.x
- * nginx 1.9.x
+ * nginx Stable
+ * nginx Mainline
  * Optional SSL support with self signed certificate or [Let's Encrypt](https://github.com/eunas/gotdeb/wiki/lets-encrypt)
 * Blogs
  * Ghost
  * Wordpress
 * [PHP](https://github.com/eunas/gotdeb/wiki/PHP-FPM)
  * PHP-FPM 5.6
- * PHP-FPM 7.0 (Debian 8)
+ * PHP-FPM 7.0 (Debian 8 only)
  * HHVM
-* MySQL Server
-* MariaDB server
+* MySQL 5.7 Server
+* MariaDB 10.1 server
 * [phpMyAdmin](https://github.com/eunas/gotdeb/wiki/phpMyAdmin)
 * PureFTPD (FTPS enabled)
 * OpenVPN Server (Works on NAT)

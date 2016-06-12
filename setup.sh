@@ -130,37 +130,54 @@ apt-key add nginx_signing.key &> /dev/null
 wait
 rm nginx_signing.key
 apt-get update &> /dev/null
+apt-get install curl -y &> /dev/null
 wait
 }
-function mariadb_repo {
+mariadb_repo() {
 file="/etc/apt/sources.list.d/mariadb.list"
 if [ ! -f "$file" ]
 then
 touch /etc/apt/sources.list.d/mariadb.list
-apt-get install software-properties-common -y &> /dev/null
 fi
-if [[ $web = "1" ]] && [[ $(plain_version) = "7" ]];
+>/etc/apt/sources.list.d/mariadb.list
+if [[ $(plain_version) = "7" ]];
 then
-echo deb [arch=amd64,i386] "http://ams2.mirrors.digitalocean.com/mariadb/repo/10.1/debian wheezy main" >> /etc/apt/sources.list.d/hhvm.list
-else
-echo deb [arch=amd64,i386] "http://ams2.mirrors.digitalocean.com/mariadb/repo/10.1/debian jessie main" >> /etc/apt/sources.list.d/hhvm.list
+echo deb [arch=amd64,i386] "http://ams2.mirrors.digitalocean.com/mariadb/repo/10.1/debian wheezy main" >> /etc/apt/sources.list.d/mariadb.list
+elif [[ $(plain_version) = "8" ]];
+then
+echo deb [arch=amd64,i386] "http://ams2.mirrors.digitalocean.com/mariadb/repo/10.1/debian jessie main" >> /etc/apt/sources.list.d/mariadb.list
 fi
 apt-key adv --recv-keys --keyserver keyserver.ubuntu.com 0xcbcb082a1bb943db &> /dev/null
-apt-get update  &> /dev/null
-apt-get install software-properties-common -y &> /dev/null
-wait
 apt-get update &> /dev/null
+wait
+apt-get install software-properties-common -y  &> /dev/null
+wait
+}
+mysql_repo() {
+file="/etc/apt/sources.list.d/mysql.list"
+if [ ! -f "$file" ]
+then
+touch /etc/apt/sources.list.d/mysql.list
+fi
+if [[ $(plain_version) = "7" ]];
+then
+echo "deb http://repo.mysql.com/apt/debian/ wheezy mysql-5.7" >> /etc/apt/sources.list.d/mysql.list
+elif [[ $(plain_version) = "8" ]];
+then
+echo "deb http://repo.mysql.com/apt/debian/ jessie mysql-5.7" >> /etc/apt/sources.list.d/mysql.list
+fi
+apt-key adv --keyserver pgp.mit.edu --recv-keys 5072E1F5 &> /dev/null
+apt-get update &> /dev/null
+wait
+apt-get install software-properties-common -y &> /dev/null
 wait
 }
 function mysql_opt {
-mysqladmin -u root password "$dbpass"
-mysql -u root -p"$dbpass" -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1')"
-mysql -u root -p"$dbpass" -e "DELETE FROM mysql.user WHERE User=''"
-mysql -u root -p"$dbpass" -e "DELETE FROM mysql.db WHERE Db='test' OR Db='test\_%'"
-mysql -u root -p"$dbpass" -e "FLUSH PRIVILEGES"
-sed -i '/skip-external-locking/ a\innodb=OFF' /etc/mysql/my.cnf
-sed -i '/innodb=OFF/ a\default-storage-engine=MyISAM' /etc/mysql/my.cnf
-sed -i "s|.*default_storage_engine.*|#|" /etc/mysql/my.cnf
+#mysqladmin -u root password "$dbpass"
+mysql -u root -p"$dbpass" -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1')" &> /dev/null
+mysql -u root -p"$dbpass" -e "DELETE FROM mysql.user WHERE User=''" &> /dev/null
+mysql -u root -p"$dbpass" -e "DELETE FROM mysql.db WHERE Db='test' OR Db='test\_%'" &> /dev/null
+mysql -u root -p"$dbpass" -e "FLUSH PRIVILEGES" &> /dev/null
 print_info "Restarting services..."
 service mysql restart &> /dev/null
 }
@@ -459,18 +476,21 @@ fi
 }
 setup_selfsigned() {
 print_info "Setting up SSL Certificate ..."
-apt-get install openssl &> /dev/null
+apt-get install openssl -y &> /dev/null
 mkdir -p /etc/nginx/ssl
 cd /etc/nginx/ssl
 openssl req -sha256 -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/nginx/ssl/nginx.key -out /etc/nginx/ssl/nginx.crt -subj "/C=US/ST=defaultstate/L=defaultcity/O=myorg/CN="$d"" &> /dev/null
 wait
 chmod 600 /etc/nginx/ssl/nginx.key
+if [ -z "$d" ] ; then
+d="$(get_external_ip)"
+fi
 rm /etc/nginx/conf.d/default.conf
 wget -O /etc/nginx/conf.d/default.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/default-ssl.conf --no-check-certificate &> /dev/null
 wait
 sed -i "s|        ssl_certificate /etc/letsencrypt/live/domain/fullchain.pem;|        ssl_certificate /etc/nginx/ssl/nginx.crt;|" /etc/nginx/conf.d/default.conf
 sed -i "s|        ssl_certificate_key /etc/letsencrypt/live/domain/privkey.pem;|        ssl_certificate_key /etc/nginx/ssl/nginx.key;|" /etc/nginx/conf.d/default.conf
-sed -i "s|        server_name domain www.domain;|        server_name "$d";|" /etc/nginx/conf.d/default.conf
+sed -i "s|.*server_name domain www.domain;.*|        server_name "$d";|" /etc/nginx/conf.d/default.conf
 sed -i "s|        ssl_dhparam /etc/letsencrypt/dhparams.pem;|        ssl_dhparam /etc/nginx/ssl/dhparams.pem;|" /etc/nginx/conf.d/default.conf
 if [ $web = "1" ] ; then
 sed -i "s|.*listen        443.*|       listen        443 ssl;|" /etc/nginx/conf.d/default.conf
@@ -489,14 +509,35 @@ print_done "ngninx successfully installed."
 }
 setup_letsencrypt() {
 print_info "Setting up Let's Encrypt. This might take a while..."
-DEBIAN_FRONTEND=noninteractive apt-get -y install git bc &> /dev/null
+if [[ ! -f /usr/sbin/cron ]]; then
+apt-get update && apt-get install cron -y &> /dev/null
 wait
-git clone https://github.com/letsencrypt/letsencrypt /opt/letsencrypt &> /dev/null
-wait
-service nginx stop
-wait
-/opt/letsencrypt/letsencrypt-auto certonly --standalone --agree-tos --email "$mail" -d "$d" -d www."$d" &> /dev/null
-wait
+fi
+if [ $(plain_version) = "8" ]; then
+    if ! grep -q jessie-backports "/etc/apt/sources.list"; then
+        echo "deb http://http.debian.net/debian jessie-backports main" >>/etc/apt/sources.list
+    fi
+    apt-get update &> /dev/null
+    wait
+    apt-get install certbot -t jessie-backports -y &> /dev/null
+    wait
+    service nginx stop
+    wait
+    certbot certonly -n --standalone --agree-tos --email "$mail" -d "$d" -d www."$d" &> /dev/null
+    wait
+    (crontab -l 2>/dev/null; echo "30 2 * * 1 /certbot renew --quiet >> /var/log/le-renewal.log") | crontab -
+fi
+if [ $(plain_version) = "7" ]; then
+    mkdir /etc/letsencrypt
+    wget -O /etc/letsencrypt/certbot-auto https://dl.eff.org/certbot-auto --no-check-certificate &> /dev/null
+    wait
+    service nginx stop
+    wait
+    chmod a+x /etc/letsencrypt/certbot-auto
+    /etc/letsencrypt/certbot-auto certonly -n --standalone --agree-tos --email "$mail" -d "$d" -d www."$d" &> /dev/null
+    wait
+    (crontab -l 2>/dev/null; echo "30 2 * * 1 /etc/letsencrypt/certbot-auto renew --quiet >> /var/log/le-renewal.log") | crontab -
+fi
 rm /etc/nginx/conf.d/default.conf
 wget -O /etc/nginx/conf.d/default.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/default-ssl.conf --no-check-certificate &> /dev/null
 wait
@@ -509,13 +550,6 @@ fi
 cd /etc/letsencrypt/
 openssl dhparam -out dhparams.pem 2048
 chmod 600 dhparams.pem
-cp /opt/letsencrypt/examples/cli.ini /usr/local/etc/le-renew-webroot.ini
-sed -i "s|# email = foo@example.com|email = "$mail"|" /usr/local/etc/le-renew-webroot.ini
-sed -i "s|# domains = example.com, www.example.com|domains = "$d", www."$d"|" /usr/local/etc/le-renew-webroot.ini
-sed -i "s|# webroot-path = /usr/share/nginx/html|webroot-path = /usr/share/nginx/html|" /usr/local/etc/le-renew-webroot.ini
-wget -O /usr/local/sbin/le-renew-webroot https://gist.githubusercontent.com/thisismitch/e1b603165523df66d5cc/raw/fbffbf358e96110d5566f13677d9bd5f4f65794c/le-renew-webroot  &> /dev/null
-chmod +x /usr/local/sbin/le-renew-webroot
-(crontab -l 2>/dev/null; echo "30 2 * * 1 /usr/local/sbin/le-renew-webroot >> /var/log/le-renewal.log") | crontab -
 if which ufw >/dev/null; then
 ufw allow 80/tcp &> /dev/null
 ufw allow 443/tcp &> /dev/null
@@ -602,7 +636,7 @@ print_warn "No webserver installed. Aborting"
 exit 1
 fi
 }
-function install_mysql {
+install_mysql() {
 check_install mysql-server 1 "MySQL is already installed"
 check_install mariadb-server 1 "MariaDB is the current DB server. Can't install MySQL"
 if [ -z "$dbpass" ];
@@ -620,10 +654,11 @@ unset dbpass
     done
 fi
 clear
-print_info "Installing MySql Server, please wait..."
-apt-get update &> /dev/null
-wait
-DEBIAN_FRONTEND=noninteractive apt-get -y install mysql-server mysql-client &> /dev/null
+print_info "Installing MySQL Server, please wait..."
+mysql_repo
+echo mysql-community-server mysql-community-server/root-pass password $dbpass | debconf-set-selections &> /dev/null
+echo mysql-community-server mysql-community-server/re-root-pass password $dbpass | debconf-set-selections &> /dev/null
+DEBIAN_FRONTEND=noninteractive apt-get install mysql-server -y &> /dev/null
 wait
 mysql_opt $dbpass
 print_done "MySQL successfully installed."
@@ -648,11 +683,11 @@ fi
 clear
 print_info "Installing MariaDB Server, please wait...";
 mariadb_repo
-DEBIAN_FRONTEND=noninteractive apt-get upgrade -y &> /dev/null
+echo mariadb-server mysql-server/root_password password $dbpass | debconf-set-selections
+echo mariadb-server mysql-server/root_password_again password $dbpass | debconf-set-selections
+DEBIAN_FRONTEND=noninteractive apt-get install mariadb-server -y &> /dev/null
 wait
-DEBIAN_FRONTEND=noninteractive apt-get -y install python-software-properties mariadb-server mariadb-client &> /dev/null
-wait
-mysql_opt $dbpass
+mysql_opt
 sed -i '/default-storage-engine=MyISAM/ a\default-tmp-storage-engine=MyISAM' /etc/mysql/my.cnf
 print_done "MariaDB successfully installed."
 }
@@ -690,14 +725,14 @@ if [[ -f /usr/bin/hhvm ]]; then
 echo "\$cfg['Servers'][\$i]['port'] = '3306';" >> /usr/share/phpmyadmin/config.inc.php
 sed -i "s|.*localhost.*|\$cfg['Servers'][\$i]['host'] = '127.0.0.1';|" /usr/share/phpmyadmin/config.inc.php
 fi
-service nginx restart
+service nginx restart &> /dev/null
 print_done "phpMyAdmin successfully installed."
 }
 function install_webserver  {
 clear
 print_info "Please choose which version to install"
-    print_info "1) nginx 1.8.x"
-    print_info "2) nginx 1.9.x"
+    print_info "1) nginx Stable"
+    print_info "2) nginx Mainline"
     print_info "e) Exit"
     read -s -n 1 web
     if [[ $web != [Ee123] ]];
@@ -1723,13 +1758,13 @@ mkdir /tmp/softether
 print_info "Downloading and installing SoftEther VPN Server...."
 MACHINE_TYPE=`uname -m`
 if [ ${MACHINE_TYPE} == 'x86_64' ]; then
-wget -O /tmp/softether/softether-vpnserver_x64.tar.gz http://www.softether-download.com/files/softether/v4.19-9599-beta-2015.10.19-tree/Linux/SoftEther_VPN_Server/64bit_-_Intel_x64_or_AMD64/softether-vpnserver-v4.19-9599-beta-2015.10.19-linux-x64-64bit.tar.gz &> /dev/null
+wget -O /tmp/softether/softether-vpnserver_x64.tar.gz http://www.softether-download.com/files/softether/v4.20-9608-rtm-2016.04.17-tree/Linux/SoftEther_VPN_Server/64bit_-_Intel_x64_or_AMD64/softether-vpnserver-v4.20-9608-rtm-2016.04.17-linux-x64-64bit.tar.gz &> /dev/null
 wait
 cd /tmp/softether
 tar zxf softether-vpnserver_x64.tar.gz
 wait
 else
-wget -O /tmp/softether/softether-vpnserver_x86.tar.gz http://www.softether-download.com/files/softether/v4.19-9599-beta-2015.10.19-tree/Linux/SoftEther_VPN_Server/32bit_-_Intel_x86/softether-vpnserver-v4.19-9599-beta-2015.10.19-linux-x86-32bit.tar.gz &> /dev/null
+wget -O /tmp/softether/softether-vpnserver_x86.tar.gz http://www.softether-download.com/files/softether/v4.20-9608-rtm-2016.04.17-tree/Linux/SoftEther_VPN_Server/32bit_-_Intel_x86/softether-vpnserver-v4.20-9608-rtm-2016.04.17-linux-x86-32bit.tar.gz &> /dev/null
 wait
 cd /tmp/softether
 tar zxf softether-vpnserver_x86.tar.gz
