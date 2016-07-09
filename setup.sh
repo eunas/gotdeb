@@ -20,12 +20,20 @@ print_info() { echo "$(tput bold)$(tput setaf 3)$*$(tput sgr0)"; }
 print_warn() { echo "$(tput bold)$(tput setaf 1)$*$(tput sgr0)"; }
 print_done() { echo "$(tput bold)$(tput setaf 2)$*$(tput sgr0)"; }
 die() { echo "$(tput bold)$(tput setaf 1)Warning: $*$(tput sgr0)"; }
+if readlink /proc/$$/exe | grep -qs "dash"; then
+	print_warn "This script needs to be run with bash, not sh"
+	exit 1
+fi
 plain_version() {
 VERSION=$(sed 's/\..*//' /etc/debian_version)
 echo "$VERSION"
 }
 check_sanity() {
 	# Do some sanity checking.
+if readlink /proc/$$/exe | grep -qs "dash"; then
+	echo "This script needs to be run with bash, not sh"
+	exit 1
+fi
 	if [ $(/usr/bin/id -u) != "0" ]
 	then
 		die 'Must be run by root user'
@@ -172,7 +180,7 @@ wait
 apt-get install software-properties-common -y &> /dev/null
 wait
 }
-function mysql_opt {
+mysql_opt() {
 #mysqladmin -u root password "$dbpass"
 mysql -u root -p"$dbpass" -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1')" &> /dev/null
 mysql -u root -p"$dbpass" -e "DELETE FROM mysql.user WHERE User=''" &> /dev/null
@@ -185,7 +193,7 @@ function rand {
 rand=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 4 | head -n 1)
 echo "$rand"
 }
-function choice_menu {
+choice_menu() {
     print_info "Install nginx with HTTPS ? [y/n]"
     read -s -n 1 ssl
     if [[ $ssl != [YyNn] ]];
@@ -504,7 +512,7 @@ ufw allow 443/tcp &> /dev/null
 ufw disable &> /dev/null
 ufw --force enable &> /dev/null
 fi
-service nginx restart
+service nginx restart &> /dev/null
 print_done "ngninx successfully installed."
 }
 setup_letsencrypt() {
@@ -578,8 +586,8 @@ function install_php {
     ?>
 EOM
     wait
-    service php5-fpm start
-    service nginx restart
+    service php5-fpm start &> /dev/null
+    service nginx restart &> /dev/null
     print_done "PHP-FPM 5.6 successfully installed."
 else
 print_warn "No webserver installed. Aborting"
@@ -604,8 +612,8 @@ function install_php7 {
     ?>
 EOM
     wait
-    service php7.0-fpm start
-    service nginx restart
+    service php7.0-fpm start &> /dev/null
+    service nginx restart &> /dev/null
     print_done "PHP-FPM 7.0 successfully installed."
 else
 print_warn "No webserver installed. Aborting"
@@ -628,8 +636,8 @@ function install_hhvm {
     ?>
 EOM
     wait
-    service hhvm restart
-    service nginx restart
+    service hhvm restart &> /dev/null
+    service nginx restart  &> /dev/null
     print_done "HHVM successfully installed."
 else
 print_warn "No webserver installed. Aborting"
@@ -705,7 +713,13 @@ then
 
 fi
 print_info "Installing phpMyAdmin..."
+if [[ $phpv = "2" ]] && [[ $(plain_version) = "8" ]];
+then
+apt-get install php7.0-mbstring &> /dev/null
+wait
+fi
 apt-get install unzip -y &> /dev/null
+wait
 wget -O /tmp/phpmyadmin.zip https://github.com/phpmyadmin/phpmyadmin/archive/STABLE.zip &>/dev/null
 wait
 unzip /tmp/phpmyadmin.zip -d /tmp &> /dev/null
@@ -777,7 +791,7 @@ print_done "Pure-FTPd with FTPS support successfully installed."
 }
 function install_openvpn {
 if [[ ! -e /dev/net/tun ]]; then
-	print_warn "TUN/TAP is not available"
+	print_warn "TUN is not available"
 	exit 1
 fi
 if grep -qs "CentOS release 5" "/etc/redhat-release"; then
@@ -786,9 +800,11 @@ if grep -qs "CentOS release 5" "/etc/redhat-release"; then
 fi
 if [[ -e /etc/debian_version ]]; then
 	OS=debian
+    GROUPNAME=nogroup
 	RCLOCAL='/etc/rc.local'
 elif [[ -e /etc/centos-release || -e /etc/redhat-release ]]; then
 	OS=centos
+    GROUPNAME=nobody
 	RCLOCAL='/etc/rc.d/rc.local'
 	# Needed for CentOS 7
 	chmod +x /etc/rc.d/rc.local
@@ -809,6 +825,9 @@ newclient () {
 	echo "<key>" >> ~/$1.ovpn
 	cat /etc/openvpn/easy-rsa/pki/private/$1.key >> ~/$1.ovpn
 	echo "</key>" >> ~/$1.ovpn
+    echo "<tls-auth>" >> ~/$1.ovpn
+	cat /etc/openvpn/ta.key >> ~/$1.ovpn
+	echo "</tls-auth>" >> ~/$1.ovpn
 }
 
 
@@ -873,16 +892,8 @@ if [[ -e /etc/openvpn/server.conf ]]; then
 			rm -rf pki/issued/$CLIENT.crt
 			rm -rf /etc/openvpn/crl.pem
 			cp /etc/openvpn/easy-rsa/pki/crl.pem /etc/openvpn/crl.pem
-			# And restart
-			if pgrep systemd-journal; then
-				systemctl restart openvpn@server.service
-			else
-				if [[ "$OS" = 'debian' ]]; then
-					/etc/init.d/openvpn restart
-				else
-					service openvpn restart
-				fi
-			fi
+            # CRL is read with each client connection, when OpenVPN is dropped to nobody
+            chown nobody:$GROUPNAME /etc/openvpn/crl.pem
 			echo ""
 			echo "Certificate for client $CLIENT revoked"
 			exit
@@ -905,9 +916,11 @@ if [[ -e /etc/openvpn/server.conf ]]; then
 					sed -i "/iptables -I FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT/d" $RCLOCAL
 				fi
 				sed -i '/iptables -t nat -A POSTROUTING -s 10.8.0.0\/24 -j SNAT --to /d' $RCLOCAL
-				if sestatus | grep "Current mode" | grep -qs "enforcing"; then
-					if [[ "$PORT" != '1194' ]]; then
-						semanage port -d -t openvpn_port_t -p udp $PORT
+				if hash sestatus 2>/dev/null; then
+					if sestatus | grep "Current mode" | grep -qs "enforcing"; then
+						if [[ "$PORT" != '1194' ]]; then
+							semanage port -d -t openvpn_port_t -p udp $PORT
+						fi
 					fi
 				fi
 				if [[ "$OS" = 'debian' ]]; then
@@ -949,6 +962,7 @@ else
 	print_info "   3) OpenDNS"
 	print_info "   4) NTT"
 	print_info "   5) Hurricane Electric"
+    print_info "   6) Verisign"
 	read -p "DNS [1-6]: " -e -i 1 DNS
 	print_info ""
 	print_info "Finally, tell me your name for the client cert"
@@ -958,8 +972,8 @@ else
 	print_info "Okay, that was all I needed. We are ready to setup your OpenVPN server now"
 	read -n1 -r -p "Press any key to continue..."
 		if [[ "$OS" = 'debian' ]]; then
-		apt-get update
-		apt-get install openvpn iptables openssl ca-certificates -y
+		apt-get update &> /dev/null
+		apt-get install openvpn iptables openssl ca-certificates -y &> /dev/null
 	else
 		# Else, the distro is CentOS
 		yum install epel-release -y
@@ -986,7 +1000,11 @@ else
 	./easyrsa gen-crl
 	# Move the stuff we need
 	cp pki/ca.crt pki/private/ca.key pki/dh.pem pki/issued/server.crt pki/private/server.key /etc/openvpn/easy-rsa/pki/crl.pem /etc/openvpn
-	# Generate server.conf
+    # CRL is read with each client connection, when OpenVPN is dropped to nobody
+    chown nobody:$GROUPNAME /etc/openvpn/crl.pem
+    # Generate key for tls-auth
+	openvpn --genkey --secret /etc/openvpn/ta.key
+    # Generate server.conf
 	echo "port $PORT
 proto udp
 dev tun
@@ -996,6 +1014,7 @@ ca ca.crt
 cert server.crt
 key server.key
 dh dh.pem
+tls-auth ta.key 0
 topology subnet
 server 10.8.0.0 255.255.255.0
 ifconfig-pool-persist ipp.txt" > /etc/openvpn/server.conf
@@ -1023,9 +1042,16 @@ ifconfig-pool-persist ipp.txt" > /etc/openvpn/server.conf
 		5)
 		echo 'push "dhcp-option DNS 74.82.42.42"' >> /etc/openvpn/server.conf
 		;;
+		6)
+		echo 'push "dhcp-option DNS 64.6.64.6"' >> /etc/openvpn/server.conf
+		echo 'push "dhcp-option DNS 64.6.65.6"' >> /etc/openvpn/server.conf
+		;;
 	esac
 	echo "keepalive 10 120
+    cipher AES-128-CBC
 comp-lzo
+user nobody
+group $GROUPNAME
 persist-key
 persist-tun
 status openvpn-status.log
@@ -1068,13 +1094,15 @@ crl-verify crl.pem" >> /etc/openvpn/server.conf
 		sed -i "1 a\iptables -I FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT" $RCLOCAL
 	fi
 	# If SELinux is enabled and a custom port was selected, we need this
-	if sestatus | grep "Current mode" | grep -qs "enforcing"; then
-		if [[ "$PORT" != '1194' ]]; then
-			# semanage isn't available in CentOS 6 by default
-			if ! which semanage > /dev/null 2>&1; then
-				yum install policycoreutils-python -y
+if hash sestatus 2>/dev/null; then
+		if sestatus | grep "Current mode" | grep -qs "enforcing"; then
+			if [[ "$PORT" != '1194' ]]; then
+				# semanage isn't available in CentOS 6 by default
+				if ! which semanage > /dev/null 2>&1; then
+					yum install policycoreutils-python -y
+				fi
+				semanage port -a -t openvpn_port_t -p udp $PORT
 			fi
-			semanage port -a -t openvpn_port_t -p udp $PORT
 		fi
 	fi
 	# And finally, restart OpenVPN
@@ -1100,7 +1128,7 @@ crl-verify crl.pem" >> /etc/openvpn/server.conf
 		print_info ""
 		print_info "Looks like your server is behind a NAT!"
 		print_info ""
-		print_info "If your server is NATed (LowEndSpirit), I need to know the external IP"
+		print_info "If your server is NATed (e.g. LowEndSpirit), I need to know the external IP"
 		print_info "If that's not the case, just ignore this and leave the next field blank"
 		read -p "External IP: " -e USEREXTERNALIP
 		if [[ "$USEREXTERNALIP" != "" ]]; then
@@ -1119,7 +1147,10 @@ nobind
 persist-key
 persist-tun
 remote-cert-tls server
+cipher AES-128-CBC
 comp-lzo
+setenv opt block-outside-dns
+key-direction 1
 verb 3" > /etc/openvpn/client-common.txt
 	# Generates the custom client.ovpn
 if which ufw >/dev/null; then
@@ -1573,7 +1604,7 @@ print_info "https://gotdeb.com"
 print_info ""
 print_info "Credits: Xeoncross, mikel, Falko Timme, road warrior, Nyr and many others",
 print_info ""
-print_info "Version 1.6.4"
+print_info "Version 1.6.5"
 }
 function system_tests {
 	print_info "Classic I/O test"
@@ -2106,11 +2137,22 @@ fi
 }
 plex_install() {
 print_info "Installing Plex media server ..."
-wget http://shell.ninthgate.se/packages/shell-ninthgate-se-keyring.key &> /dev/null
-apt-key add shell-ninthgate-se-keyring.key &> /dev/null
+wget http://shell.ninthgate.se/packages/shell.ninthgate.se.gpg.key &> /dev/null
+apt-key add shell.ninthgate.se.gpg.key &> /dev/null
 wait
-rm shell-ninthgate-se-keyring.key
-apt-get update &> /dev/null && apt-get install plexmediaserver -y  &> /dev/null
+rm shell.ninthgate.se.gpg.key
+file="/etc/apt/sources.list.d/plexmediaserver.list"
+if [ ! -f "$file" ]
+then
+touch /etc/apt/sources.list.d/plexmediaserver.list
+fi
+if [ $(plain_version) = "7" ]; then
+echo "deb http://shell.ninthgate.se/packages/debian wheezy main" >> /etc/apt/sources.list.d/plexmediaserver.list
+elif [ $(plain_version) = "8" ]; then
+echo "deb http://shell.ninthgate.se/packages/debian jessie main" >> /etc/apt/sources.list.d/plexmediaserver.list
+fi
+apt-get update &> /dev/null
+apt-get install plexmediaserver -y &> /dev/null
 wait
 wget --no-check-certificate -O /etc/init.d/plexmediaserver https://raw.githubusercontent.com/eunas/gotdeb/master/resources/plexmediaserver  &> /dev/null
 wait
@@ -2123,7 +2165,7 @@ ufw --force enable &> /dev/null
 fi
 service plexmediaserver restart &> /dev/null
 wait
-print_done "Plex media server has been installed. You can access it at http://$(get_ip):32400/web To get access to the server settings please setup a VPN on the server and access it's localip using that."
+print_done "Plex media server has been installed. You can access it at http://$(get_ip):32400/web To get access to the server settings please setup a VPN on the server and access it's local IP using that."
 }
 function setup_observium {
 while true; do
@@ -2399,17 +2441,22 @@ print_info "1) SQLite"
 print_info "2) MariaDB"
 print_info "3) MySQL"
 read -n 1 dbs
-    if [[ $dbs = "2" ]] || [[ $dbs = "3" ]] ; then
-clear
-print_info "Install PHP ? [y/n]"
-read -n 1 pha
+if [[ $dbs = "1" ]] ; then
+php=n
+db=n
+db1=n
+install_webserver
 fi
+if [[ $dbs = "2" ]] || [[ $dbs = "3" ]] ; then
+    clear
+    print_info "Install PHPMyAdmin ? [y/n]"
+    read -n 1 pha
 if [[ $pha != [YyNn] ]];
     then
     clear
-    print_warn "Error in input, try again"
+    print_warn "Error in input, try again !"
     exit 1
-    fi
+fi
 if [[ $pha = "y" ]] ; then
 php=y
 else
@@ -2426,6 +2473,7 @@ db=n
 db1=n
 fi
 install_webserver
+fi
 if [ -z "$gp" ] ; then
 gp="2368"
 fi
@@ -2433,25 +2481,30 @@ clear
 print_info "Installing ghost. Please wait ...."
 apt-get update  &> /dev/null
 wait
-apt-get install zip curl -y  &> /dev/null
-wait
-
+if [ $(plain_version) = "7" ]; then
 curl -sL https://deb.nodesource.com/setup_4.x | bash - &> /dev/null
-apt-get install --yes nodejs &> /dev/null
-
+wait
+fi
+apt-get install build-essential nodejs nodejs-legacy npm unzip curl supervisor -y &> /dev/null
+wait
 wget -O /tmp/ghost.zip https://ghost.org/zip/ghost-latest.zip &> /dev/null
 wait
 mkdir -p /usr/share/ghost
 unzip /tmp/ghost.zip -d /usr/share/ghost &> /dev/null
 wait
 cd /usr/share/ghost
-npm install --production
+npm install --production &> /dev/null
 wait
+useradd -r ghost -U
+chown -R ghost:ghost /usr/share/ghost
 cp config.example.js config.js
 wget -O /etc/nginx/conf.d/ghost.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/ghost.conf --no-check-certificate  &> /dev/null
 wait
 mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default-backup
-if [[  ssl = "y" ]]; then
+if [[ $ssl = "y" ]]; then
+rm /etc/nginx/conf.d/ghost.conf
+wget -O /etc/nginx/conf.d/ghost.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/ghost-ssl.conf --no-check-certificate  &> /dev/null
+wait
 if [ $sslv = "1" ] ; then
 sed -i "s|    ssl_dhparam|    ssl_dhparam /etc/nginx/ssl/dhparams.pem;|" /etc/nginx/conf.d/ghost.conf
 fi
@@ -2490,14 +2543,10 @@ sed -i "s|            host: '127.0.0.1',|            host: '0.0.0.0',|" /usr/sha
 sed -i "s|            port: '2368'|            port: '"$gp"'|" /usr/share/ghost/config.js
 sed -i "s|    server_name server_name;|    server_name "$d";|" /etc/nginx/conf.d/ghost.conf
 sed -i "s|proxy_pass http://127.0.0.1:2368;|proxy_pass http://127.0.0.1:"$gp";|" /etc/nginx/conf.d/ghost.conf
-useradd -r ghost -U
-chown -R ghost:ghost /usr/share/ghost
-wget -O /etc/init.d/ghost https://raw.github.com/TryGhost/Ghost-Config/master/init.d/ghost  &> /dev/null
-sed -i "s|GHOST_ROOT=/var/www/ghost|GHOST_ROOT=/usr/share/ghost|" /etc/init.d/ghost
-chmod 755 /etc/init.d/ghost
-update-rc.d ghost defaults  &> /dev/null
-update-rc.d ghost enable  &> /dev/null
-/etc/init.d/ghost start  &> /dev/null
+wget -O /etc/supervisor/conf.d/ghost.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/ghost-supervisor.conf  --no-check-certificate  &> /dev/null
+supervisorctl reread &> /dev/null
+supervisorctl update &> /dev/null
+supervisorctl restart ghost-blog &> /dev/null
 service nginx restart  &> /dev/null
 clear
 print_done "======================================================"

@@ -1,3 +1,10 @@
+### 1.6.6 (2016-07-09)
+- Fixed error with SQLite in ghost install *
+- Fixed missing mbstring in phpMyAdmin on Debian 8
+- Updated OpenVPN installer
+- Detect users running with "sh" instead of bash
+- Updated repository and key for Plexmediaserver.
+
 ### 1.6.5 (2016-06-09)
 - Updated LetsEncrypt to use Certbot.
 - Updated LetsEncrypt autorenew
