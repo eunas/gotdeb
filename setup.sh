@@ -66,7 +66,7 @@ then
 touch /etc/apt/sources.list.d/dotdeb_php.list
 echo "deb http://packages.dotdeb.org wheezy-php56 all" >> /etc/apt/sources.list.d/dotdeb_php.list
 echo "deb-src http://packages.dotdeb.org wheezy-php56 all" >> /etc/apt/sources.list.d/dotdeb_php.list
-wget http://www.dotdeb.org/dotdeb.gpg &> /dev/null
+wget http://www.dotdeb.org/dotdeb.gpg&> /dev/null
 apt-key add dotdeb.gpg &> /dev/null
 wait
 rm dotdeb.gpg
@@ -85,7 +85,7 @@ then
 echo "deb http://packages.dotdeb.org jessie all" >> /etc/apt/sources.list.d/dotdeb_php.list
 echo "deb-src http://packages.dotdeb.org jessie all" >> /etc/apt/sources.list.d/dotdeb_php.list
 fi
-wget http://www.dotdeb.org/dotdeb.gpg &> /dev/null
+wget http://www.dotdeb.org/dotdeb.gpg&> /dev/null
 apt-key add dotdeb.gpg &> /dev/null
 wait
 rm dotdeb.gpg
@@ -103,7 +103,7 @@ echo deb "http://dl.hhvm.com/debian wheezy main" >> /etc/apt/sources.list.d/hhvm
 elif [ $(plain_version) = "8" ]; then
 echo deb "http://dl.hhvm.com/debian jessie main" >> /etc/apt/sources.list.d/hhvm.list
 fi
-apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 0x5a16e7281be7a449  &> /dev/null
+apt-key adv --recv-keys --keyserver hkp://keyserver.ubuntu.com:80 0x5a16e7281be7a449 &> /dev/null
 wait
 apt-get update &> /dev/null
 }
@@ -133,12 +133,12 @@ then
 echo "deb http://nginx.org/packages/mainline/debian/ jessie nginx" >> /etc/apt/sources.list.d/nginx.list
 echo "deb-src http://nginx.org/packages/mainline/debian/ jessie nginx" >> /etc/apt/sources.list.d/nginx.list
 fi
-wget http://nginx.org/keys/nginx_signing.key &> /dev/null
+wget http://nginx.org/keys/nginx_signing.key&> /dev/null
 apt-key add nginx_signing.key &> /dev/null
 wait
 rm nginx_signing.key
 apt-get update &> /dev/null
-apt-get install curl -y &> /dev/null
+apt-get install -y  -y curl &> /dev/null
 wait
 }
 mariadb_repo() {
@@ -158,7 +158,7 @@ fi
 apt-key adv --recv-keys --keyserver keyserver.ubuntu.com 0xcbcb082a1bb943db &> /dev/null
 apt-get update &> /dev/null
 wait
-apt-get install software-properties-common -y  &> /dev/null
+apt-get install -y  software-properties-common &> /dev/null
 wait
 }
 mysql_repo() {
@@ -177,7 +177,7 @@ fi
 apt-key adv --keyserver pgp.mit.edu --recv-keys 5072E1F5 &> /dev/null
 apt-get update &> /dev/null
 wait
-apt-get install software-properties-common -y &> /dev/null
+apt-get install -y  software-properties-common &> /dev/null
 wait
 }
 mysql_opt() {
@@ -367,14 +367,16 @@ done
 function install_nginx {
     check_install nginx 1 "ngninx is already installed" v
     choice_menu
-    apt-get install curl -y &> /dev/null
+    apt-get install -y  curl -y &> /dev/null
     if which apache2 >/dev/null; then
     print_info "Apache2 detected, please wait while we remove it..."
     service apache2 stop &> /dev/null
-    apt-get --purge remove apache2 -y &> /dev/null
+    apt-get --purge remove apache2 &> /dev/null
+    wait
     fi
     nginx_repo
-    DEBIAN_FRONTEND=noninteractive apt-get install -y nginx &> /dev/null
+    apt-get install -y  nginx &> /dev/null
+    wait
     /bin/cat <<"EOM" >/etc/nginx/conf.d/default.conf
  server {
     listen 80 default_server;
@@ -445,6 +447,7 @@ sed -i '/    gzip_comp_level 6;/ a\    gzip_buffers 16 8k;' /etc/nginx/nginx.con
 sed -i '/    gzip_buffers 16 8k;/ a\    gzip_http_version 1.1;' /etc/nginx/nginx.conf
 sed -i '/    gzip_http_version 1.1;/ a\    gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;' /etc/nginx/nginx.conf
 sed -i '/.*sendfile.*;/ a\    server_tokens   off; ' /etc/nginx/nginx.conf
+echo 'fastcgi_param HTTP_PROXY "";' >> /etc/nginx/fastcgi_params
 if [[ $sslv = "1" ]]
 then
 setup_selfsigned
@@ -457,7 +460,7 @@ ufw allow 80/tcp &> /dev/null
 ufw disable &> /dev/null
 ufw --force enable &> /dev/null
 fi
-service nginx restart &>  /dev/null
+service nginx restart &> /dev/null
     print_done "ngninx successfully installed."
 fi
 if [ $php = "y" ] && [ $phpv = "1" ] ; then
@@ -484,7 +487,7 @@ fi
 }
 setup_selfsigned() {
 print_info "Setting up SSL Certificate ..."
-apt-get install openssl -y &> /dev/null
+apt-get install -y  openssl &> /dev/null
 mkdir -p /etc/nginx/ssl
 cd /etc/nginx/ssl
 openssl req -sha256 -x509 -nodes -days 365 -newkey rsa:2048 -keyout /etc/nginx/ssl/nginx.key -out /etc/nginx/ssl/nginx.crt -subj "/C=US/ST=defaultstate/L=defaultcity/O=myorg/CN="$d"" &> /dev/null
@@ -494,7 +497,7 @@ if [ -z "$d" ] ; then
 d="$(get_external_ip)"
 fi
 rm /etc/nginx/conf.d/default.conf
-wget -O /etc/nginx/conf.d/default.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/default-ssl.conf --no-check-certificate &> /dev/null
+wget -O /etc/nginx/conf.d/default.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/default-ssl.conf --no-check-certificate&> /dev/null
 wait
 sed -i "s|        ssl_certificate /etc/letsencrypt/live/domain/fullchain.pem;|        ssl_certificate /etc/nginx/ssl/nginx.crt;|" /etc/nginx/conf.d/default.conf
 sed -i "s|        ssl_certificate_key /etc/letsencrypt/live/domain/privkey.pem;|        ssl_certificate_key /etc/nginx/ssl/nginx.key;|" /etc/nginx/conf.d/default.conf
@@ -518,7 +521,8 @@ print_done "ngninx successfully installed."
 setup_letsencrypt() {
 print_info "Setting up Let's Encrypt. This might take a while..."
 if [[ ! -f /usr/sbin/cron ]]; then
-apt-get update && apt-get install cron -y &> /dev/null
+apt-get update &> /dev/null
+apt-get install -y  cron &> /dev/null
 wait
 fi
 if [ $(plain_version) = "8" ]; then
@@ -527,7 +531,7 @@ if [ $(plain_version) = "8" ]; then
     fi
     apt-get update &> /dev/null
     wait
-    apt-get install certbot -t jessie-backports -y &> /dev/null
+    apt-get install -y  certbot -t jessie-backports &> /dev/null
     wait
     service nginx stop
     wait
@@ -537,7 +541,7 @@ if [ $(plain_version) = "8" ]; then
 fi
 if [ $(plain_version) = "7" ]; then
     mkdir /etc/letsencrypt
-    wget -O /etc/letsencrypt/certbot-auto https://dl.eff.org/certbot-auto --no-check-certificate &> /dev/null
+    wget -O /etc/letsencrypt/certbot-auto https://dl.eff.org/certbot-auto --no-check-certificate&> /dev/null
     wait
     service nginx stop
     wait
@@ -547,7 +551,7 @@ if [ $(plain_version) = "7" ]; then
     (crontab -l 2>/dev/null; echo "30 2 * * 1 /etc/letsencrypt/certbot-auto renew --quiet >> /var/log/le-renewal.log") | crontab -
 fi
 rm /etc/nginx/conf.d/default.conf
-wget -O /etc/nginx/conf.d/default.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/default-ssl.conf --no-check-certificate &> /dev/null
+wget -O /etc/nginx/conf.d/default.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/default-ssl.conf --no-check-certificate&> /dev/null
 wait
 sed -i "s|        ssl_certificate /etc/letsencrypt/live/domain/fullchain.pem;|        ssl_certificate /etc/letsencrypt/live/"$d"/fullchain.pem;|" /etc/nginx/conf.d/default.conf
 sed -i "s|        ssl_certificate_key /etc/letsencrypt/live/domain/privkey.pem;|        ssl_certificate_key /etc/letsencrypt/live/"$d"/privkey.pem;|" /etc/nginx/conf.d/default.conf
@@ -564,7 +568,7 @@ ufw allow 443/tcp &> /dev/null
 ufw disable &> /dev/null
 ufw --force enable &> /dev/null
 fi
-service nginx start
+service nginx &> /dev/null
 print_done "ngninx successfully installed."
 }
 function install_php {
@@ -574,7 +578,7 @@ function install_php {
     if [ $(plain_version) = "7" ]; then
     dotdeb_php_repo
     fi
-    DEBIAN_FRONTEND=noninteractive apt-get install php5-fpm php5-common php5-mysqlnd php5-sqlite php5-mcrypt php5-curl curl php5-cli php5-gd -y &> /dev/null
+    DEBIAN_FRONTEND=noninteractive apt-get install -y  php5-fpm php5-common php5-mysqlnd php5-sqlite php5-mcrypt php5-curl curl php5-cli php5-gd &> /dev/null
     sed -i "s|.*;cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php5/fpm/php.ini
     sed -i "s|.*upload_max_filesize = 2M.*|upload_max_filesize = 128M|" /etc/php5/fpm/php.ini
     sed -i "s|.*post_max_size = 8M.*|post_max_size = 128M|" /etc/php5/fpm/php.ini
@@ -600,16 +604,21 @@ function install_php7 {
     print_info "Installing PHP 7 ..."
     dotdeb_php_7_repo
     wait
-    DEBIAN_FRONTEND=noninteractive apt-get install php7.0-mysql php7.0 php7.0-fpm php7.0-common curl php7.0-cli php7.0-gd php7.0-mcrypt php7.0-opcache php7.0-curl -y &> /dev/null
+    DEBIAN_FRONTEND=noninteractive apt-get install -y  php7.0-mysql php7.0 php7.0-fpm php7.0-common curl php7.0-cli php7.0-gd php7.0-mcrypt php7.0-opcache php7.0-curl &> /dev/null
+    ram=$(free | awk '/^Mem:/{print $2}')
+    op_mem=$(($ram / 1024 /4))
     sed -i "s|.*;cgi.fix_pathinfo.*|cgi.fix_pathinfo=0|" /etc/php/7.0/fpm/php.ini
     sed -i "s|.*upload_max_filesize = 2M.*|upload_max_filesize = 128M|" /etc/php/7.0/fpm/php.ini
     sed -i "s|.*post_max_size = 8M.*|post_max_size = 128M|" /etc/php/7.0/fpm/php.ini
     sed -i "s|        fastcgi_pass unix:/var/run/php5-fpm.sock;|        fastcgi_pass unix:/var/run/php/php7.0-fpm.sock;|" /etc/nginx/conf.d/default.conf
+    sed -i "s|.*;opcache.enable=1.*|opcache.enable=1|" /etc/php/7.0/fpm/php.ini
+    sed -i "s|.*;opcache.memory_consumption.*|opcache.memory_consumption=$op_mem|" /etc/php/7.0/fpm/php.in
     touch /usr/share/nginx/html/info.php
 /bin/cat <<"EOM" >/usr/share/nginx/html/info.php
     <?php
     phpinfo();
     ?>
+wget -O /usr/share/nginx/html/opcache.php https://raw.githubusercontent.com/amnuts/opcache-gui/master/index.php --no-check-certificate&> /dev/null
 EOM
     wait
     service php7.0-fpm start &> /dev/null
@@ -625,7 +634,7 @@ function install_hhvm {
     print_info "Installing HHVM ..."
     hhvm_repo
     wait
-    apt-get install php5-mysql hhvm curl -y &> /dev/null
+    apt-get install -y  php5-mysql hhvm curl &> /dev/null
     sed -i "s|        fastcgi_pass unix:/var/run/php5-fpm.sock;|        fastcgi_pass unix:/var/run/hhvm/hhvm.sock;|" /etc/nginx/conf.d/default.conf
     sed -i '/hhvm.server.port = 9000/ a\hhvm.server.file_socket=/var/run/hhvm/hhvm.sock' /etc/hhvm/server.ini
     sed -i "s|hhvm.server.port = 9000|;hhvm.server.port = 9000|" /etc/hhvm/server.ini
@@ -637,7 +646,7 @@ function install_hhvm {
 EOM
     wait
     service hhvm restart &> /dev/null
-    service nginx restart  &> /dev/null
+    service nginx restart &> /dev/null
     print_done "HHVM successfully installed."
 else
 print_warn "No webserver installed. Aborting"
@@ -666,7 +675,7 @@ print_info "Installing MySQL Server, please wait..."
 mysql_repo
 echo mysql-community-server mysql-community-server/root-pass password $dbpass | debconf-set-selections &> /dev/null
 echo mysql-community-server mysql-community-server/re-root-pass password $dbpass | debconf-set-selections &> /dev/null
-DEBIAN_FRONTEND=noninteractive apt-get install mysql-server -y &> /dev/null
+DEBIAN_FRONTEND=noninteractive apt-get install -y  mysql-server &> /dev/null
 wait
 mysql_opt $dbpass
 print_done "MySQL successfully installed."
@@ -693,7 +702,7 @@ print_info "Installing MariaDB Server, please wait...";
 mariadb_repo
 echo mariadb-server mysql-server/root_password password $dbpass | debconf-set-selections
 echo mariadb-server mysql-server/root_password_again password $dbpass | debconf-set-selections
-DEBIAN_FRONTEND=noninteractive apt-get install mariadb-server -y &> /dev/null
+DEBIAN_FRONTEND=noninteractive apt-get install -y  mariadb-server &> /dev/null
 wait
 mysql_opt
 sed -i '/default-storage-engine=MyISAM/ a\default-tmp-storage-engine=MyISAM' /etc/mysql/my.cnf
@@ -715,12 +724,12 @@ fi
 print_info "Installing phpMyAdmin..."
 if [[ $phpv = "2" ]] && [[ $(plain_version) = "8" ]];
 then
-apt-get install php7.0-mbstring &> /dev/null
+apt-get install -y  php7.0-mbstring &> /dev/null
 wait
 fi
-apt-get install unzip -y &> /dev/null
+apt-get install -y  unzip &> /dev/null
 wait
-wget -O /tmp/phpmyadmin.zip https://github.com/phpmyadmin/phpmyadmin/archive/STABLE.zip &>/dev/null
+wget -O /tmp/phpmyadmin.zip https://github.com/phpmyadmin/phpmyadmin/archive/STABLE.zip&> /dev/null
 wait
 unzip /tmp/phpmyadmin.zip -d /tmp &> /dev/null
 wait
@@ -770,7 +779,7 @@ read p
 print_info "Installing Pure-FTPd..."
 apt-get update &> /dev/null
 wait
-DEBIAN_FRONTEND=noninteractive apt-get install pure-ftpd -y &> /dev/null
+DEBIAN_FRONTEND=noninteractive apt-get install -y  pure-ftpd &> /dev/null
 wait
 if [ -z "$p" ] ; then
 p="21"
@@ -910,7 +919,7 @@ if [[ -e /etc/openvpn/server.conf ]]; then
 					firewall-cmd --permanent --zone=public --remove-port=$PORT/udp
 					firewall-cmd --permanent --zone=trusted --remove-source=10.8.0.0/24
 				fi
-				if iptables -L | grep -qE 'REJECT|DROP'; then
+				if iptables -L -n | grep -qE 'REJECT|DROP'; then
 					sed -i "/iptables -I INPUT -p udp --dport $PORT -j ACCEPT/d" $RCLOCAL
 					sed -i "/iptables -I FORWARD -s 10.8.0.0\/24 -j ACCEPT/d" $RCLOCAL
 					sed -i "/iptables -I FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT/d" $RCLOCAL
@@ -973,7 +982,7 @@ else
 	read -n1 -r -p "Press any key to continue..."
 		if [[ "$OS" = 'debian' ]]; then
 		apt-get update &> /dev/null
-		apt-get install openvpn iptables openssl ca-certificates -y &> /dev/null
+		apt-get install -y  openvpn iptables openssl ca-certificates &> /dev/null
 	else
 		# Else, the distro is CentOS
 		yum install epel-release -y
@@ -1082,7 +1091,7 @@ crl-verify crl.pem" >> /etc/openvpn/server.conf
 		firewall-cmd --permanent --zone=public --add-port=$PORT/udp
 		firewall-cmd --permanent --zone=trusted --add-source=10.8.0.0/24
 	fi
-	if iptables -L | grep -qE 'REJECT|DROP'; then
+	if iptables -L -n | grep -qE 'REJECT|DROP'; then
 		# If iptables has at least one REJECT rule, we asume this is needed.
 		# Not the best approach but I can't think of other and this shouldn't
 		# cause problems.
@@ -1419,7 +1428,7 @@ if which ssmtp >/dev/null; then
 configure_ssmtp
 else
 print_info "Installing ssmtp..."
-DEBIAN_FRONTEND=noninteractive apt-get install -y ssmtp &> /dev/null
+DEBIAN_FRONTEND=noninteractive apt-get install -y &> /dev/null
 wait
 configure_ssmtp
 fi
@@ -1427,7 +1436,7 @@ fi
 function show_os_arch_version {
 if [ $(dpkg-query -W -f='${Status}' lsb-release 2>/dev/null | grep -c "ok installed") -eq 0 ];
 then
-  apt-get install lsb-release >/dev/null
+  apt-get install -y  lsb-release &> /dev/null
   wait
 fi
 	ARCH=$(uname -m | sed 's/x86_//;s/i[3-6]86/32/')
@@ -1511,6 +1520,7 @@ print_info "5) Secure System"
 print_info "6) Speedtest.net"
 print_info "7) Get OS Version"
 print_info "8) TUN/TAP Status"
+print_info "9) Debug info"
 print_info "e) Exit"
 read -n1 choice
 case $choice in
@@ -1550,6 +1560,10 @@ if [[ ! -e /dev/net/tun ]]; then
 fi
 break
 ;;
+9)
+debug
+break
+;;
 e)
 break
 ;;
@@ -1578,7 +1592,7 @@ function remove_unneeded {
     wait
 	apt-get --purge remove -y nscd
     wait
-    apt-get update && apt-get install sysv-rc-conf -y
+    apt-get update && apt-get install -y  sysv-rc-conf &> /dev/null
     wait
     sysv-rc-conf xinetd off
     sysv-rc-conf saslauthd off
@@ -1594,7 +1608,7 @@ function remove_unneeded {
 function essentials {
 print_info "Installing..."
 apt-get update &> /dev/null
-apt-get install -y nano rcconf lftp unzip  &> /dev/null
+apt-get install -y  nano rcconf lftp unzip &> /dev/null
 print_done "Essentials services installed"
 }
 function script_about {
@@ -1604,9 +1618,9 @@ print_info "https://gotdeb.com"
 print_info ""
 print_info "Credits: Xeoncross, mikel, Falko Timme, road warrior, Nyr and many others",
 print_info ""
-print_info "Version 1.6.5"
+print_info "Version 1.6.7"
 }
-function system_tests {
+system_tests() {
 	print_info "Classic I/O test"
 	print_info "dd if=/dev/zero of=iotest bs=64k count=16k conv=fdatasync && rm -fr iotest"
 	dd if=/dev/zero of=iotest bs=64k count=16k conv=fdatasync && rm -fr iotest
@@ -1614,6 +1628,26 @@ function system_tests {
 	print_info "Network test"
 	print_info "wget cachefly.cachefly.net/100mb.test -O 100mb.test && rm -fr 100mb.test"
 	wget cachefly.cachefly.net/100mb.test -O 100mb.test && rm -fr 100mb.test
+}
+debug() {
+file="$(pwd)debug.txt"
+if [ -f "$file" ]
+then
+rm debug.txt
+fi
+date >> debug.txt
+echo "" >> debug.txt
+df -h >> debug.txt
+echo "" >> debug.txt
+show_os_arch_version >> debug.txt
+uname -a >> debug.txt
+echo "" >> debug.txt
+free -m >> debug.txt
+echo "" >> debug.txt
+echo "" >> debug.txt
+
+sed -n '/Version /s/^.*[^0-9]\([0-9]*\.[0-9]*\.[0-9]*\).*$/\1/p' /root/setup.sh >> debug.txt
+print_done "File saved: $(pwd)/debug.txt"
 }
 configure_aria2() {
 if which aria2c >/dev/null; then
@@ -1639,7 +1673,7 @@ echo "deb-src http://http.us.debian.org/debian testing main non-free contrib" >>
 apt-get update &> /dev/null
 wait
 fi
-DEBIAN_FRONTEND=noninteractive apt-get install aria2 git curl -y &> /dev/null
+DEBIAN_FRONTEND=noninteractive apt-get install -y  aria2 git curl &> /dev/null
 wait
 rm /etc/apt/sources.list.d/debian-testing.list
 apt-get update &> /dev/null
@@ -1762,7 +1796,7 @@ if [[ ! -f /usr/sbin/php5-fpm ]] && [[ ! -f /usr/sbin/php-fpm7.0 ]] && [[ ! -f /
  print_warn "PHP or HHVM is not installed."
 exit 1
 fi
-apt-get install git curl -y
+apt-get install -y  git curl &> /dev/null
 mkdir /usr/share/nginx/html/monitor
 git clone https://github.com/afaqurk/linux-dash /usr/share/nginx/html/monitor
 print_done "You can view the monitor at http://$(get_external_ip)/monitor"
@@ -1772,8 +1806,8 @@ file="/home/speedtest-cli"
 if [ ! -f "$file" ]
 then
 print_info "Fetching script"
-apt-get install python -y &> /dev/null
-wget -O /home/speedtest-cli https://raw.github.com/sivel/speedtest-cli/master/speedtest_cli.py --no-check-certificate
+apt-get install -y  python &> /dev/null
+wget -O /home/speedtest-cli https://raw.github.com/sivel/speedtest-cli/master/speedtest_cli.py --no-check-certificate&> /dev/null
 python /home/speedtest-cli --share
 else
 python /home/speedtest-cli  --share
@@ -1784,18 +1818,18 @@ check_install softether 1 "SoftEtherVPN is already installed" v
 print_info "Running pre checks, this might take a while..."
 apt-get update &> /dev/null
 apt-get --purge remove -y bind9* &> /dev/null
-apt-get install build-essential dnsmasq -y &> /dev/null
+apt-get install -y  build-essential dnsmasq &> /dev/null
 mkdir /tmp/softether
 print_info "Downloading and installing SoftEther VPN Server...."
 MACHINE_TYPE=`uname -m`
 if [ ${MACHINE_TYPE} == 'x86_64' ]; then
-wget -O /tmp/softether/softether-vpnserver_x64.tar.gz http://www.softether-download.com/files/softether/v4.20-9608-rtm-2016.04.17-tree/Linux/SoftEther_VPN_Server/64bit_-_Intel_x64_or_AMD64/softether-vpnserver-v4.20-9608-rtm-2016.04.17-linux-x64-64bit.tar.gz &> /dev/null
+wget -O /tmp/softether/softether-vpnserver_x64.tar.gz http://www.softether-download.com/files/softether/v4.20-9608-rtm-2016.04.17-tree/Linux/SoftEther_VPN_Server/64bit_-_Intel_x64_or_AMD64/softether-vpnserver-v4.20-9608-rtm-2016.04.17-linux-x64-64bit.tar.gz&> /dev/null
 wait
 cd /tmp/softether
 tar zxf softether-vpnserver_x64.tar.gz
 wait
 else
-wget -O /tmp/softether/softether-vpnserver_x86.tar.gz http://www.softether-download.com/files/softether/v4.20-9608-rtm-2016.04.17-tree/Linux/SoftEther_VPN_Server/32bit_-_Intel_x86/softether-vpnserver-v4.20-9608-rtm-2016.04.17-linux-x86-32bit.tar.gz &> /dev/null
+wget -O /tmp/softether/softether-vpnserver_x86.tar.gz http://www.softether-download.com/files/softether/v4.20-9608-rtm-2016.04.17-tree/Linux/SoftEther_VPN_Server/32bit_-_Intel_x86/softether-vpnserver-v4.20-9608-rtm-2016.04.17-linux-x86-32bit.tar.gz&> /dev/null
 wait
 cd /tmp/softether
 tar zxf softether-vpnserver_x86.tar.gz
@@ -1953,7 +1987,7 @@ iptables -A INPUT -p tcp --dport $port -j ACCEPT
 if [[ $method = "2" ]] ; then
 echo iptables-persistent iptables-persistent/autosave_v4 boolean true | debconf-set-selections
 echo iptables-persistent iptables-persistent/autosave_v6 boolean true | debconf-set-selections
-apt-get install iptables-persistent -y &> /dev/null
+apt-get install -y  iptables-persistent &> /dev/null
 sed -i "s|.*#user=.*|user=root|" /etc/dnsmasq.conf
 if which ufw >/dev/null; then
 ufw allow "$port"/tcp &> /dev/null
@@ -1988,11 +2022,11 @@ elif [ $(plain_version) = "8" ]; then
 echo "deb http://packages.x2go.org/debian jessie main" >> /etc/apt/sources.list.d/x2go.list
 echo "deb-src http://packages.x2go.org/debian jessie main" >> /etc/apt/sources.list.d/x2go.list
 fi
-apt-get update  &> /dev/null
-apt-get install x2go-keyring -y &> /dev/null
-apt-get install xfce4 iceweasel -y &> /dev/null
+apt-get update &> /dev/null
+apt-get install -y  x2go-keyring &> /dev/null
+apt-get install -y  xfce4 iceweasel &> /dev/null
 
-apt-get install x2goserver* -y &> /dev/null
+apt-get install -y  x2goserver* &> /dev/null
 service x2goserver start &> /dev/null
 print_done "Installation completed"
 print_done "Remember to create a new user"
@@ -2022,7 +2056,7 @@ read p
 print_done "User $u added with home dir /home/$u"
 print_info "Installing..."
 apt-get update &> /dev/null
-apt-get install fail2ban -y &> /dev/null
+apt-get install -y  fail2ban &> /dev/null
 wait
 cp /etc/fail2ban/jail.conf /etc/fail2ban/jail.local
 sed -i "s|.*PermitRootLogin yes.*|PermitRootLogin no|"  /etc/ssh/sshd_config
@@ -2062,7 +2096,7 @@ print_info "Ports can be opened using ufw allow port-number"
 sleep 3
 print_info "Installing..."
 apt-get update &> /dev/null
-apt-get install ufw -y &> /dev/null
+apt-get install -y  ufw &> /dev/null
 PORT=$(cat /etc/ssh/sshd_config | grep Port)
 unset p
 p=${PORT#*Port }
@@ -2089,7 +2123,7 @@ if [ -f /etc/cron.daily/apt.disabled ]; then
 fi
 apt-get upgrade &> /dev/null
 echo unattended-upgrades unattended-upgrades/enable_auto_updates boolean true | debconf-set-selections &> /dev/null
-apt-get install unattended-upgrades -y &> /dev/null
+apt-get install -y  unattended-upgrades &> /dev/null
 print_done "Your installation is now configured to automaticly install critical updates."
 }
 while true; do
@@ -2137,7 +2171,7 @@ fi
 }
 plex_install() {
 print_info "Installing Plex media server ..."
-wget http://shell.ninthgate.se/packages/shell.ninthgate.se.gpg.key &> /dev/null
+wget http://shell.ninthgate.se/packages/shell.ninthgate.se.gpg.key&> /dev/null
 apt-key add shell.ninthgate.se.gpg.key &> /dev/null
 wait
 rm shell.ninthgate.se.gpg.key
@@ -2152,9 +2186,9 @@ elif [ $(plain_version) = "8" ]; then
 echo "deb http://shell.ninthgate.se/packages/debian jessie main" >> /etc/apt/sources.list.d/plexmediaserver.list
 fi
 apt-get update &> /dev/null
-apt-get install plexmediaserver -y &> /dev/null
+apt-get install -y  plexmediaserver &> /dev/null
 wait
-wget --no-check-certificate -O /etc/init.d/plexmediaserver https://raw.githubusercontent.com/eunas/gotdeb/master/resources/plexmediaserver  &> /dev/null
+wget --no-check-certificate -O /etc/init.d/plexmediaserver https://raw.githubusercontent.com/eunas/gotdeb/master/resources/plexmediaserver&> /dev/null
 wait
 chmod +x /etc/init.d/plexmediaserver
 update-rc.d plexmediaserver defaults &> /dev/null
@@ -2222,15 +2256,15 @@ print_info "Installing observium..."
 $MYSQL -uroot -p$dbpass -e "$SQL"
 apt-get update &> /dev/null
 rm /etc/nginx/conf.d/default.conf
-wget -O /etc/nginx/conf.d/default.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/default.conf --no-check-certificate &> /dev/null
+wget -O /etc/nginx/conf.d/default.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/default.conf --no-check-certificate&> /dev/null
 if [[ -e /usr/sbin/php-fpm7.0 ]]; then
-apt-get install php7.0-snmp php-pear snmp graphviz php7.0-json rrdtool fping imagemagick whois mtr-tiny nmap ipmitool python-mysqldb curl -y &> /dev/null
+apt-get install -y  php7.0-snmp php-pear snmp graphviz php7.0-json rrdtool fping imagemagick whois mtr-tiny nmap ipmitool python-mysqldb curl &> /dev/null
 elif [[ -e /usr/sbin/php5-fpm ]] || [[ -e /usr/bin/hhvm ]] ; then
-apt-get install php5-snmp php-pear snmp graphviz php5-json rrdtool fping imagemagick whois mtr-tiny nmap ipmitool python-mysqldb curl -y &> /dev/null
+apt-get install -y  php5-snmp php-pear snmp graphviz php5-json rrdtool fping imagemagick whois mtr-tiny nmap ipmitool python-mysqldb curl &> /dev/null
 fi
 if [[ $ssl = "y" ]]; then
 rm /etc/nginx/conf.d/default.conf
-wget -O /etc/nginx/conf.d/default.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/observium-ssl.conf --no-check-certificate &> /dev/null
+wget -O /etc/nginx/conf.d/default.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/observium-ssl.conf --no-check-certificate&> /dev/null
 wait
 if [ $sslv = "1" ] ; then
 sed -i "s|        ssl_certificate /cert.crt;|        ssl_certificate /etc/nginx/ssl/nginx.crt;|" /etc/nginx/conf.d/default.conf
@@ -2241,9 +2275,6 @@ if [ $sslv = "2" ] ; then
 sed -i "s|        ssl_certificate /cert.crt;|        ssl_certificate /etc/letsencrypt/live/"$d"/fullchain.pem;|" /etc/nginx/conf.d/default.conf
 sed -i "s|        ssl_certificate_key /privkey.key;|        ssl_certificate_key /etc/letsencrypt/live/"$d"/privkey.pem;|" /etc/nginx/conf.d/default.conf
 sed -i "s|        ssl_dhparam /dhparams.pem;|        ssl_dhparam /etc/letsencrypt/dhparams.pem;|" /etc/nginx/conf.d/default.conf
-fi
-if [ $web = "1" ] ; then
-sed -i "s|       listen        443 ssl http2;|       listen        443 ssl;|" /etc/nginx/conf.d/default.conf
 fi
 fi
 if [[ $phpv = "1" ]] ; then
@@ -2257,7 +2288,7 @@ sed -i "s|        server_name domain www.domain;|        server_name "$d";|" /et
 sed -i "5s|.*root /usr/share/nginx/html;|        root /opt/observium/html;|" /etc/nginx/conf.d/default.conf
 sed -i "16s|.*root /usr/share/nginx/html;|        root /opt/observium/html;|" /etc/nginx/conf.d/default.conf
 mkdir -p /opt/observium && cd /opt
-wget -P /opt/ http://www.observium.org/observium-community-latest.tar.gz &> /dev/null
+wget -P /opt/ http://www.observium.org/observium-community-latest.tar.gz&> /dev/null
 tar zxvf /opt/observium-community-latest.tar.gz -C /opt &> /dev/null
 cp /opt/observium/config.php.default /opt/observium/config.php
 sed -i "s|USERNAME|"$u"|" /opt/observium/config.php
@@ -2311,7 +2342,7 @@ LOCATION=$loc
 listen=$(hostname --ip-address)
 print_info "Installing Observium client, please wait..."
 apt-get update &> /dev/null
-apt-get install -y snmpd &> /dev/null
+apt-get install -y &> /dev/null
 sed -i.bak "/SNMPDOPTS=/c\SNMPDOPTS='-Lsd -Lf /dev/null -u snmp -p /var/run/snmpd.pid'" /etc/default/snmpd
 cat > /etc/snmp/snmpd.conf <<END
 com2sec readonly  default         $COMMUNITY
@@ -2327,7 +2358,7 @@ syscontact $CONTACT
 extend .1.3.6.1.4.1.2021.7890.1 distro /usr/bin/distro
 END
 #get distro checking script
-wget -O distro https://raw.githubusercontent.com/eunas/gotdeb/master/resources/observium_distro --no-check-certificate &> /dev/null
+wget -O distro https://raw.githubusercontent.com/eunas/gotdeb/master/resources/observium_distro --no-check-certificate&> /dev/null
 mv distro /usr/bin/distro
 chmod +x /usr/bin/distro
 if which ufw >/dev/null; then
@@ -2358,7 +2389,7 @@ if [ -z "$trp" ] ; then
 trp="9091"
 fi
 print_info "Installing  Transmission BitTorrent client, please wait..."
-apt-get install transmission-daemon -y  &> /dev/null
+apt-get install -y  transmission-daemon &> /dev/null
 wait
 mkdir /usr/share/transmission/completed /usr/share/transmission/incomplete
 chown debian-transmission:debian-transmission /usr/share/transmission/completed
@@ -2479,15 +2510,15 @@ gp="2368"
 fi
 clear
 print_info "Installing ghost. Please wait ...."
-apt-get update  &> /dev/null
+apt-get update &> /dev/null
 wait
 if [ $(plain_version) = "7" ]; then
 curl -sL https://deb.nodesource.com/setup_4.x | bash - &> /dev/null
 wait
 fi
-apt-get install build-essential nodejs nodejs-legacy npm unzip curl supervisor -y &> /dev/null
+apt-get install -y  build-essential nodejs nodejs-legacy npm unzip curl supervisor &> /dev/null
 wait
-wget -O /tmp/ghost.zip https://ghost.org/zip/ghost-latest.zip &> /dev/null
+wget -O /tmp/ghost.zip https://ghost.org/zip/ghost-latest.zip&> /dev/null
 wait
 mkdir -p /usr/share/ghost
 unzip /tmp/ghost.zip -d /usr/share/ghost &> /dev/null
@@ -2498,12 +2529,12 @@ wait
 useradd -r ghost -U
 chown -R ghost:ghost /usr/share/ghost
 cp config.example.js config.js
-wget -O /etc/nginx/conf.d/ghost.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/ghost.conf --no-check-certificate  &> /dev/null
+wget -O /etc/nginx/conf.d/ghost.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/ghost.conf --no-check-certificate&> /dev/null
 wait
 mv /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default-backup
 if [[ $ssl = "y" ]]; then
 rm /etc/nginx/conf.d/ghost.conf
-wget -O /etc/nginx/conf.d/ghost.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/ghost-ssl.conf --no-check-certificate  &> /dev/null
+wget -O /etc/nginx/conf.d/ghost.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/ghost-ssl.conf --no-check-certificate&> /dev/null
 wait
 if [ $sslv = "1" ] ; then
 sed -i "s|    ssl_dhparam|    ssl_dhparam /etc/nginx/ssl/dhparams.pem;|" /etc/nginx/conf.d/ghost.conf
@@ -2543,11 +2574,11 @@ sed -i "s|            host: '127.0.0.1',|            host: '0.0.0.0',|" /usr/sha
 sed -i "s|            port: '2368'|            port: '"$gp"'|" /usr/share/ghost/config.js
 sed -i "s|    server_name server_name;|    server_name "$d";|" /etc/nginx/conf.d/ghost.conf
 sed -i "s|proxy_pass http://127.0.0.1:2368;|proxy_pass http://127.0.0.1:"$gp";|" /etc/nginx/conf.d/ghost.conf
-wget -O /etc/supervisor/conf.d/ghost.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/ghost-supervisor.conf  --no-check-certificate  &> /dev/null
+wget -O /etc/supervisor/conf.d/ghost.conf https://raw.githubusercontent.com/eunas/gotdeb/master/resources/ghost-supervisor.conf  --no-check-certificate&> /dev/null
 supervisorctl reread &> /dev/null
 supervisorctl update &> /dev/null
 supervisorctl restart ghost-blog &> /dev/null
-service nginx restart  &> /dev/null
+service nginx restart &> /dev/null
 clear
 print_done "======================================================"
 print_done "Ghost has been installed"
@@ -2583,14 +2614,14 @@ Q3="GRANT ALL PRIVILEGES ON wordpress.* TO $u@localhost;"
 Q4="FLUSH PRIVILEGES;"
 SQL="${Q1}${Q2}${Q3}${Q4}"
 $MYSQL -uroot -p$dbpass -e "$SQL"
-wget -O /tmp/wordpress.tar.gz http://wordpress.org/latest.tar.gz  &> /dev/null
+wget -O /tmp/wordpress.tar.gz http://wordpress.org/latest.tar.gz&> /dev/null
 wait
-tar -C /tmp/ -xvzf /tmp/wordpress.tar.gz  &> /dev/null
+tar -C /tmp/ -xvzf /tmp/wordpress.tar.gz &> /dev/null
 wait
-cp -r /tmp/wordpress/* /usr/share/nginx/html/  &> /dev/null
+cp -r /tmp/wordpress/* /usr/share/nginx/html/ &> /dev/null
 wait
-cp /usr/share/nginx/html/wp-config-sample.php /usr/share/nginx/html/wp-config.php  &> /dev/null
-wget -O /tmp/wp.keys https://api.wordpress.org/secret-key/1.1/salt/ &> /dev/null
+cp /usr/share/nginx/html/wp-config-sample.php /usr/share/nginx/html/wp-config.php &> /dev/null
+wget -O /tmp/wp.keys https://api.wordpress.org/secret-key/1.1/salt/&> /dev/null
 sed -i '/#@-/r /tmp/wp.keys' /usr/share/nginx/html/wp-config.php
 sed -i "/#@+/,/#@-/d" /usr/share/nginx/html/wp-config.php
 sed -i "s/database_name_here/wordpress/" /usr/share/nginx/html/wp-config.php

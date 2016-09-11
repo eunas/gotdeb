@@ -1,3 +1,12 @@
+###  1.6.7 (2016-09-11)
+ - Ghost now works with other themes
+ - Fixed wrong path in nginx document root
+ - http/2 is now default for nginx
+ - Fix for HTTPOXY vulnerability
+ - Added debug information
+ - Enabled OPCache on PHP 7
+ - Updated OpenVPN installer
+
 ### 1.6.6 (2016-07-09)
 - Fixed error with SQLite in ghost install *
 - Fixed missing mbstring in phpMyAdmin on Debian 8
